@@ -35,8 +35,8 @@ function removeUser(user) {
 class Game {
 
 	/**
-	 * @param {User} user1 
-	 * @param {User} user2 
+	 * @param {User} user1
+	 * @param {User} user2
 	 */
 	constructor(user1, user2) {
 		this.user1 = user1;
@@ -178,17 +178,6 @@ module.exports = {
 			if (user.opponent) {
 				user.opponent.end();
 				findOpponent(user.opponent);
-			}
-		});
-
-		socket.on("guess", (guess) => {
-			console.log("Guess: " + socket.id);
-			if (user.setGuess(guess) && user.game.ended()) {
-				user.game.score();
-				user.game.start();
-				storage.get('games', 0).then(games => {
-					storage.set('games', games + 1);
-				});
 			}
 		});
 
