@@ -1,5 +1,6 @@
 var gulp = require('gulp');
-var minify = require('gulp-minify');
+var gutil = require('gulp-util');
+const uglify = require('gulp-uglifyes');
 
 gulp.task('scripts', function() {
     gulp.src(['src/**/*.js'])
@@ -8,7 +9,11 @@ gulp.task('scripts', function() {
 
 gulp.task('scripts-minify', function() {
     gulp.src(['src/**/*.js'])
-        .pipe(minify())
+        .pipe(uglify({
+            mangle: true,
+            ecma: 6
+         }))
+        .on('error', function (err) { gutil.log(gutil.colors.red('[Error]'), err.toString()); })
         .pipe(gulp.dest('public/'))
 })
 
@@ -19,7 +24,7 @@ gulp.task('html', function() {
 
 gulp.task('html-minify', function() {
     gulp.src("src/*.html")
-        .pipe(minify())
+        // .pipe(minify())
         .pipe(gulp.dest('public/'))
 })
 
