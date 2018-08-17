@@ -15,6 +15,10 @@ const KEY_CHECKER = {};
 
 /** To be swapped with server logic */
 const DROPPED_MESSAGES = [];
+const MAX_DROPPED_MESSAGES = 3;
+
+const DROPPED_ARROWS = [];
+const MAX_DROPPED_ARROWS = 6;
 
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
@@ -41,6 +45,26 @@ let mousePos = { x: 0, y: 0 };
 function addMessage(pos) {
     console.log('ADDING MESSAGE');
     DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
+}
+
+let activeArrows = 0;
+
+function addArrow(pos, rotation) {
+    if (activeArrows === MAX_DROPPED_ARROWS) {
+        activeArrows--;
+        for (let i = 0; i < DROPPED_ARROWS.length; i++) {
+            if (!DROPPED_ARROWS[i].removing) {
+                var removalIndex = i;
+                break;
+            }
+        }
+        DROPPED_ARROWS[removalIndex].remove(() => {
+            DROPPED_ARROWS.splice(0, 1);
+        });
+    }
+    activeArrows++;
+    DROPPED_ARROWS.push(new GroundArrow(pos.x, pos.y, rotation));
+
 }
 
 /** Game Classes */
@@ -70,17 +94,18 @@ function Player(x, y) {
 
 Player.prototype.update = function() {
     // A or <-
-    if (KEY_CHECKER[65] || KEY_CHECKER[37]) {
-        this.pos.x -= this.speed;
+    let adjustedSpeed = KEY_CHECKER[16] ? this.speed * 1.6 : this.speed;
+    if (KEY_CHECKER[65]) {
+        this.pos.x -= adjustedSpeed;
     }
-    if (KEY_CHECKER[38] || KEY_CHECKER[87]) {
-        this.pos.y -= this.speed;
+    if (KEY_CHECKER[87]) {
+        this.pos.y -= adjustedSpeed;
     }
-    if (KEY_CHECKER[68] || KEY_CHECKER[39]) {
-        this.pos.x += this.speed;
+    if (KEY_CHECKER[68]) {
+        this.pos.x += adjustedSpeed;
     }
-    if (KEY_CHECKER[40] || KEY_CHECKER[83]) {
-        this.pos.y += this.speed;
+    if (KEY_CHECKER[83]) {
+        this.pos.y += adjustedSpeed;
     }
 }
 
@@ -102,14 +127,68 @@ function MsgDropper(x, y) {
     this.droppingMessage = false;
     this.msgDropState = {
         timeDropped: 0
-    }
-    this.timeToDrop = 2000;
+    };
+    this.arrowDropState = {
+        timeDropped: 0
+    };
+    this.timeToDrop = 1000;
 }
 inherits(MsgDropper, Player);
 
 MsgDropper.prototype.update = function(t) {
     this.super_.prototype.update.call(this);
 
+    this.handleMessageDropping(t);
+    this.handleArrowDropping(t);
+}
+
+MsgDropper.prototype.handleArrowDropping = function(t) {
+    let LEFT_PRESSED = KEY_CHECKER[37];
+    let UP_PRESSED = KEY_CHECKER[38];
+    let RIGHT_PRESSED = KEY_CHECKER[39];
+    let DOWN_PRESSED = KEY_CHECKER[40];
+
+    let nonePressed = ![LEFT_PRESSED, UP_PRESSED, RIGHT_PRESSED, DOWN_PRESSED].some(function(el) { return !!el; });
+    if (nonePressed) {
+        this.freezeArrowDrop = false;
+        return;
+    }
+
+    if (this.freezeArrowDrop) {
+        return;
+    }
+
+    // Early exit first cycle to allow time for simultaneous button pressing
+    if (!this.awaitingDrop) {
+        this.awaitingDrop = true;
+        return;
+    }
+
+    this.awaitingDrop = false;
+
+    // Down -- Default
+    let rotation = 0;
+
+    if (LEFT_PRESSED && UP_PRESSED) {
+        rotation = .75 * Math.PI;
+    } else if (LEFT_PRESSED && DOWN_PRESSED) {
+        rotation = .25 * Math.PI;
+    } else if (LEFT_PRESSED) {
+        rotation = .5 * Math.PI;
+    } else if (RIGHT_PRESSED && UP_PRESSED) {
+        rotation = 1.25 * Math.PI;
+    } else if (RIGHT_PRESSED && DOWN_PRESSED) {
+        rotation = 1.75 * Math.PI;
+    } else if (RIGHT_PRESSED) {
+        rotation = 1.5 * Math.PI;
+    } else if (UP_PRESSED) {
+        rotation = 1 * Math.PI;
+    }
+
+    this.dropArrow(rotation);
+}
+
+MsgDropper.prototype.handleMessageDropping = function(t) {
     if (this.freezeMsgDrop && !KEY_CHECKER[32]) {
         this.freezeMsgDrop = false;
     }
@@ -135,7 +214,11 @@ MsgDropper.prototype.update = function(t) {
 }
 
 MsgDropper.prototype.updateCanDrop = function() {
-    const canDrop = !Array.prototype.some.call([65,37,38,87,68,39,40,83], function(i) { return KEY_CHECKER[i] }) && !this.freezeMsgDrop;
+    const canDrop =
+        DROPPED_MESSAGES.length < MAX_DROPPED_MESSAGES &&
+        !Array.prototype.some.call([65,87,68,83], function(i) { return KEY_CHECKER[i] }) &&
+        !this.freezeMsgDrop;
+
     this.canDropMessage = canDrop;
 }
 
@@ -144,6 +227,11 @@ MsgDropper.prototype.dropMessage = function() {
     this.msgDropState.timeDropped = 0;
     this.droppingMessage = false;
     this.freezeMsgDrop = true;
+}
+
+MsgDropper.prototype.dropArrow = function(rotation) {
+    addArrow(this.pos, rotation);
+    this.freezeArrowDrop = true;
 }
 
 MsgDropper.prototype.drawUI = function() {
@@ -158,8 +246,6 @@ MsgDropper.prototype.drawUI = function() {
 
 function Message(x, y) {
     this.pos = {x: x, y: y};
-    console.log("My message pos is");
-    console.log(this.pos)
 }
 
 Message.prototype.draw = function() {
@@ -171,6 +257,52 @@ Message.prototype.draw = function() {
     ctx.rect(this.pos.x - 10, this.pos.y - 5, 20, 10);
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
+}
+
+function GroundArrow(x, y, rotation) {
+    this.pos = {x: x, y:y};
+    this.rotation = rotation;
+    this.removing = false;
+    this.opacity = 1;
+}
+
+GroundArrow.prototype.remove = function(cb) {
+    this.removing = true;
+    this.removalCB = cb;
+}
+
+GroundArrow.prototype.update = function() {
+    if (this.opacity <= 0) {
+        this.removalCB && this.removalCB(this);
+        return;
+    }
+    if (this.removing) {
+        this.opacity -= .1;
+    }
+}
+
+GroundArrow.prototype.draw = function() {
+    ctx.save();
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(0,0,0,' + this.opacity + ')';
+    ctx.lineWidth = 4;
+    ctx.translate(this.pos.x, this.pos.y);
+    ctx.translate(0, -5);
+    ctx.rotate(this.rotation);
+    ctx.translate(0, 5);
+    ctx.moveTo(0, 2);
+    ctx.lineTo(-5, -5);
+    ctx.lineTo(-2, -5);
+    ctx.lineTo(-2, -25)
+    ctx.lineTo(2, -25);
+    ctx.lineTo(2, -5);
+    ctx.lineTo(5, -5);
+    ctx.closePath();
+
+    ctx.scale(1.4,1.4);
+    ctx.stroke();
+    // ctx.stroke();
     ctx.restore();
 }
 
@@ -187,10 +319,21 @@ function loadMap() {
 function update(time) {
     let deltaTime = time - globalTime;
     player.update(deltaTime);
+    updateBackground();
 
     draw();
     window.requestAnimationFrame(update);
     globalTime = time;
+}
+
+function updateBackground() {
+    updateArrows();
+}
+
+function updateArrows() {
+    for (let arrow = 0; arrow < DROPPED_ARROWS.length; arrow++) {
+        DROPPED_ARROWS[arrow].update();
+    }
 }
 
 /** Main Draw Loop */
@@ -227,11 +370,17 @@ function drawBackground() {
         }
     }
     drawMessages();
+    drawArrows();
     ctx.restore();
 }
 function drawMessages() {
     for (let msg = 0; msg < DROPPED_MESSAGES.length; msg++) {
         DROPPED_MESSAGES[msg].draw();
+    }
+}
+function drawArrows() {
+    for (let arrow = 0; arrow < DROPPED_ARROWS.length; arrow++) {
+        DROPPED_ARROWS[arrow].draw();
     }
 }
 function drawCursor() {
