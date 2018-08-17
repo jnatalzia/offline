@@ -20,6 +20,11 @@ const MAX_DROPPED_MESSAGES = 3;
 const DROPPED_ARROWS = [];
 const MAX_DROPPED_ARROWS = 6;
 
+/** Types/Enums */
+const PLAYER_COURIER = 'COURIER';
+const PLAYER_DICTATOR = 'DICTATOR';
+const PLAYER_MESSAGE_DROPPER = 'MSGDROPPER';
+
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 
@@ -39,13 +44,26 @@ function handleMouseMove(e) {
     mousePos = {x: e.offsetX, y: e.offsetY};
 }
 
+/** Utils */
+function hasOverlap(hb1, hb2) {
+    return !(hb1.x + hb1.w < hb2.x ||
+        hb1.x > hb2.x + hb2.w ||
+        hb1.y + hb1.h < hb2.y ||
+        hb1.y > hb2.y + hb2.h)
+}
+
 /** Game State */
 let mousePos = { x: 0, y: 0 };
 
 function addMessage(pos) {
-    console.log('ADDING MESSAGE');
     DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
 }
+
+/** Test data addition */
+addMessage({x: 600, y: 500});
+addMessage({x: 600, y: 600});
+addMessage({x: 400, y: 400});
+addMessage({x: 400, y: 500});
 
 let activeArrows = 0;
 
@@ -64,7 +82,6 @@ function addArrow(pos, rotation) {
     }
     activeArrows++;
     DROPPED_ARROWS.push(new GroundArrow(pos.x, pos.y, rotation));
-
 }
 
 /** Game Classes */
@@ -121,14 +138,26 @@ Player.prototype.draw = function() {
     ctx.restore();
 }
 
+Player.prototype.drawUI = function() {
+
+}
+
+Player.prototype.getHitbox = function() {
+    return {
+        x: this.pos.x - this.size.w/2,
+        y: this.pos.y - this.size.h/2,
+        w: this.size.w,
+        h: this.size.h
+    }
+}
+
 function MsgDropper(x, y) {
     this.super_.apply(this, arguments);
+
+    this.type = PLAYER_MESSAGE_DROPPER
     this.canDropMessage = true;
     this.droppingMessage = false;
     this.msgDropState = {
-        timeDropped: 0
-    };
-    this.arrowDropState = {
         timeDropped: 0
     };
     this.timeToDrop = 1000;
@@ -244,8 +273,35 @@ MsgDropper.prototype.drawUI = function() {
     ctx.restore();
 }
 
+function Courier(x, y) {
+    this.super_.apply(this, arguments);
+
+    this.type = PLAYER_COURIER;
+    this.nearbyMessages = [];
+}
+
+inherits(Courier, Player);
+
+Courier.prototype.update = function() {
+    this.super_.prototype.update.call(this);
+
+
+}
+
+Courier.prototype.canPickUp = function(msg) {
+    if (KEY_CHECKER[32]) {
+        msg.read();
+        msg.destroy();
+    }
+}
+
 function Message(x, y) {
     this.pos = {x: x, y: y};
+    this.size = {
+        w: 20,
+        h: 10
+    };
+    this.coords = [112, 45];
 }
 
 Message.prototype.draw = function() {
@@ -254,10 +310,29 @@ Message.prototype.draw = function() {
     ctx.strokeStyle = '#00348F';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.rect(this.pos.x - 10, this.pos.y - 5, 20, 10);
+    ctx.rect(this.pos.x - this.size.w/2, this.pos.y - this.size.h/2, this.size.w, this.size.h);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
+}
+
+
+Message.prototype.getHitbox = function() {
+    return {
+        x: this.pos.x - this.size.w/2,
+        y: this.pos.y - this.size.h/2,
+        w: this.size.w,
+        h: this.size.h
+    }
+}
+
+Message.prototype.read = function() {
+    console.log("The encoded message tells you: " + this.coords);
+}
+
+Message.prototype.destroy = function() {
+    let idx = DROPPED_MESSAGES.indexOf(this);
+    DROPPED_MESSAGES.splice(idx, 1);
 }
 
 function GroundArrow(x, y, rotation) {
@@ -307,7 +382,8 @@ GroundArrow.prototype.draw = function() {
 }
 
 /** Game State */
-let player = new MsgDropper(500, 500);
+// let player = new MsgDropper(500, 500);
+let player = new Courier(500, 500);
 let globalTime = 0;
 
 /** Bootup */
@@ -318,8 +394,12 @@ function loadMap() {
 /** Main Update Loop */
 function update(time) {
     let deltaTime = time - globalTime;
+
     player.update(deltaTime);
     updateBackground();
+
+    // Check collisions
+    checkCollisions();
 
     draw();
     window.requestAnimationFrame(update);
@@ -334,6 +414,21 @@ function updateArrows() {
     for (let arrow = 0; arrow < DROPPED_ARROWS.length; arrow++) {
         DROPPED_ARROWS[arrow].update();
     }
+}
+
+function checkCollisions() {
+    // Current Player and Message
+    if (player.type === PLAYER_COURIER) {
+        checkCourierCollisions();
+    }
+}
+
+function checkCourierCollisions() {
+    DROPPED_MESSAGES.forEach((msg, idx) => {
+        if (hasOverlap(player.getHitbox(), msg.getHitbox())) {
+            player.canPickUp(msg);
+        }
+    });
 }
 
 /** Main Draw Loop */
