@@ -13,6 +13,9 @@ const MAP_HEIGHT = 5000;
 
 const KEY_CHECKER = {};
 
+/** To be swapped with server logic */
+const DROPPED_MESSAGES = [];
+
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 
@@ -35,7 +38,28 @@ function handleMouseMove(e) {
 /** Game State */
 let mousePos = { x: 0, y: 0 };
 
+function addMessage(pos) {
+    console.log('ADDING MESSAGE');
+    DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
+}
+
 /** Game Classes */
+
+/** Helpers */
+function inherits (ctor, superCtor) {
+  ctor.prototype = Object.create(superCtor.prototype, {
+    constructor: {
+      value: ctor,
+      enumerable: false
+    },
+    super_: {
+        value: superCtor,
+        enumerable: false
+    }
+  });
+};
+
+function Extendable() {}
 
 /** Player Class */
 function Player(x, y) {
@@ -72,21 +96,101 @@ Player.prototype.draw = function() {
     ctx.restore();
 }
 
+function MsgDropper(x, y) {
+    this.super_.apply(this, arguments);
+    this.canDropMessage = true;
+    this.droppingMessage = false;
+    this.msgDropState = {
+        timeDropped: 0
+    }
+    this.timeToDrop = 2000;
+}
+inherits(MsgDropper, Player);
+
+MsgDropper.prototype.update = function(t) {
+    this.super_.prototype.update.call(this);
+
+    if (this.freezeMsgDrop && !KEY_CHECKER[32]) {
+        this.freezeMsgDrop = false;
+    }
+
+    this.updateCanDrop();
+
+    if (KEY_CHECKER[32] && !this.droppingMessage && this.canDropMessage) {
+        this.droppingMessage = true;
+    }
+
+    if (this.droppingMessage) {
+        if (!KEY_CHECKER[32] || !this.canDropMessage) {
+            this.msgDropState.timeDropped = 0;
+            this.droppingMessage = false;
+            return;
+        }
+
+        this.msgDropState.timeDropped += t;
+        if (this.msgDropState.timeDropped >= this.timeToDrop) {
+            this.dropMessage();
+        }
+    }
+}
+
+MsgDropper.prototype.updateCanDrop = function() {
+    const canDrop = !Array.prototype.some.call([65,37,38,87,68,39,40,83], function(i) { return KEY_CHECKER[i] }) && !this.freezeMsgDrop;
+    this.canDropMessage = canDrop;
+}
+
+MsgDropper.prototype.dropMessage = function() {
+    addMessage(this.pos);
+    this.msgDropState.timeDropped = 0;
+    this.droppingMessage = false;
+    this.freezeMsgDrop = true;
+}
+
+MsgDropper.prototype.drawUI = function() {
+    ctx.save();
+    ctx.strokeStyle = '#00348F';
+    ctx.fillStyle = '#00348F';
+    ctx.lineWidth = 2;
+    ctx.fillRect(10, 10, 100 * (this.msgDropState.timeDropped / this.timeToDrop), 20);
+    ctx.strokeRect(10, 10, 100, 20);
+    ctx.restore();
+}
+
+function Message(x, y) {
+    this.pos = {x: x, y: y};
+    console.log("My message pos is");
+    console.log(this.pos)
+}
+
+Message.prototype.draw = function() {
+    ctx.save();
+    ctx.fillStyle = '#eee';
+    ctx.strokeStyle = '#00348F';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(this.pos.x - 10, this.pos.y - 5, 20, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
 /** Game State */
-let player = new Player(25, 25);
+let player = new MsgDropper(500, 500);
+let globalTime = 0;
 
 /** Bootup */
 function loadMap() {
     let map = [];
-    console.log('map loaded!')
     update();
 }
 /** Main Update Loop */
 function update(time) {
-    player.update();
+    let deltaTime = time - globalTime;
+    player.update(deltaTime);
 
     draw();
     window.requestAnimationFrame(update);
+    globalTime = time;
 }
 
 /** Main Draw Loop */
@@ -94,16 +198,19 @@ function draw() {
     clearBoard();
     drawBackground();
     player.draw();
-    drawCursor();
+    drawUI();
 }
-
+function drawUI() {
+    drawCursor();
+    player.drawUI();
+}
 function clearBoard() {
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 }
 function drawBackground() {
     ctx.save();
-    ctx.translate(-player.pos.x,-player.pos.y)
+    ctx.translate(-player.pos.x + CANVAS_WIDTH/2,-player.pos.y + CANVAS_HEIGHT/2)
     for (let w = 0; w < MAP_WIDTH; w += PIXELS_PER_UNIT) {
         for (let h = 0; h < MAP_HEIGHT; h += PIXELS_PER_UNIT) {
             ctx.beginPath();
@@ -119,7 +226,13 @@ function drawBackground() {
             ctx.stroke();
         }
     }
+    drawMessages();
     ctx.restore();
+}
+function drawMessages() {
+    for (let msg = 0; msg < DROPPED_MESSAGES.length; msg++) {
+        DROPPED_MESSAGES[msg].draw();
+    }
 }
 function drawCursor() {
     ctx.beginPath();
