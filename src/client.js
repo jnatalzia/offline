@@ -109,9 +109,13 @@ function Player(x, y) {
     this.speed = 2;
 }
 
+Player.prototype.getAdjustedSpeed = function() {
+    return KEY_CHECKER[16] ? this.speed * 1.6 : this.speed;
+}
+
 Player.prototype.update = function() {
     // A or <-
-    let adjustedSpeed = KEY_CHECKER[16] ? this.speed * 1.6 : this.speed;
+    let adjustedSpeed = this.getAdjustedSpeed();
     if (KEY_CHECKER[65]) {
         this.pos.x -= adjustedSpeed;
     }
@@ -293,6 +297,10 @@ Courier.prototype.canPickUp = function(msg) {
         msg.read();
         msg.destroy();
     }
+}
+
+Courier.prototype.getAdjustedSpeed = function() {
+    return this.speed;
 }
 
 function Message(x, y) {
