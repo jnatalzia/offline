@@ -14,14 +14,12 @@ const MAP_HEIGHT = 1000;
 const KEY_CHECKER = {};
 
 /** To be swapped with server logic */
-const DROPPED_MESSAGES = [];
-const MAX_DROPPED_MESSAGES = 3;
-
-const DROPPED_ARROWS = [];
-const MAX_DROPPED_ARROWS = 6;
+let DROPPED_MESSAGES = [];
+let DROPPED_ARROWS = [];
+let FIRED_BULLETS = [];
 
 const EXTERNAL_PLAYERS = [];
-const FIRED_BULLETS = [];
+
 
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
@@ -65,36 +63,24 @@ function getClassFromType(type) {
 let mousePos = { x: 0, y: 0 };
 
 function addMessage(pos) {
-    DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
+    // DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
+    socket.emit('drop-message', {pos: pos});
 }
-
-/** Test data addition */
-addMessage({x: 600, y: 500});
-addMessage({x: 600, y: 600});
-addMessage({x: 400, y: 400});
-addMessage({x: 400, y: 500});
 
 let activeArrows = 0;
 
 function addArrow(pos, rotation) {
-    if (activeArrows === MAX_DROPPED_ARROWS) {
-        activeArrows--;
-        for (let i = 0; i < DROPPED_ARROWS.length; i++) {
-            if (!DROPPED_ARROWS[i].removing) {
-                var removalIndex = i;
-                break;
-            }
-        }
-        DROPPED_ARROWS[removalIndex].remove(() => {
-            DROPPED_ARROWS.splice(0, 1);
-        });
-    }
-    activeArrows++;
-    DROPPED_ARROWS.push(new GroundArrow(pos.x, pos.y, rotation));
+    socket.emit('drop-arrow', {
+        pos: pos,
+        rotation: rotation
+    });
 }
 
 function addBullet(pos, rotation) {
-    FIRED_BULLETS.push(new Bullet(pos.x, pos.y, rotation));
+    socket.emit('fire-bullet', {
+        pos: pos,
+        rotation: rotation
+    });
 }
 
 /** Game Classes */
@@ -119,17 +105,24 @@ function Extendable() {}
 function Player(x, y, isNotPlayer) {
     this.pos = { x: x, y: y };
     this.size = { w: 20, h: 15 };
-    this.speed = 2;
+    this.speed = 12;
     this.isPlayer = !isNotPlayer;
+    if (this.isPlayer) {
+        this.addEventHandlers();
+    }
 }
 
-Player.prototype.getAdjustedSpeed = function() {
-    return KEY_CHECKER[16] ? this.speed * 1.6 : this.speed;
+Player.prototype.addEventHandlers = function() {
+
 }
 
-Player.prototype.update = function() {
+Player.prototype.getAdjustedSpeed = function(t) {
+    return (KEY_CHECKER[16] ? this.speed * 1.6 : this.speed) * (t/100);
+}
+
+Player.prototype.update = function(t) {
     // A or <-
-    let adjustedSpeed = this.getAdjustedSpeed();
+    let adjustedSpeed = this.getAdjustedSpeed(t);
     if (KEY_CHECKER[65]) {
         this.pos.x -= adjustedSpeed;
     }
@@ -195,7 +188,7 @@ function MsgDropper(x, y) {
 inherits(MsgDropper, Player);
 
 MsgDropper.prototype.update = function(t) {
-    this.super_.prototype.update.call(this);
+    this.super_.prototype.update.call(this, t);
 
     this.handleMessageDropping(t);
     this.handleArrowDropping(t);
@@ -314,8 +307,6 @@ inherits(Courier, Player);
 
 Courier.prototype.update = function() {
     this.super_.prototype.update.call(this);
-
-
 }
 
 Courier.prototype.canPickUp = function(msg) {
@@ -332,9 +323,6 @@ Courier.prototype.getAdjustedSpeed = function() {
 function Dictator(x, y, isNotPlayer) {
     this.super_.apply(this, arguments);
     this.type = PLAYER_DICTATOR;
-    if (this.isPlayer) {
-        this.attachEventListeners();
-    }
 }
 
 inherits(Dictator, Player);
@@ -345,7 +333,7 @@ Dictator.prototype.canPickUp = function(msg) {
     }
 }
 
-Dictator.prototype.attachEventListeners = function() {
+Dictator.prototype.addEventHandlers = function() {
     canvas.addEventListener('click', this.fireBullet.bind(this));
 }
 
@@ -354,131 +342,10 @@ Dictator.prototype.fireBullet = function() {
     addBullet(this.pos, derivedRadianRotation, this);
 }
 
-function Message(x, y) {
-    this.pos = {x: x, y: y};
-    this.size = {
-        w: 20,
-        h: 10
-    };
-    this.coords = [112, 45];
-}
-
-Message.prototype.draw = function() {
-    ctx.save();
-    ctx.fillStyle = '#eee';
-    ctx.strokeStyle = '#00348F';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.rect(this.pos.x - this.size.w/2, this.pos.y - this.size.h/2, this.size.w, this.size.h);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-}
-
-
-Message.prototype.getHitbox = function() {
-    return {
-        x: this.pos.x - this.size.w/2,
-        y: this.pos.y - this.size.h/2,
-        w: this.size.w,
-        h: this.size.h
-    }
-}
-
-Message.prototype.read = function() {
-    console.log("The encoded message tells you: " + this.coords);
-}
-
-Message.prototype.destroy = function() {
-    let idx = DROPPED_MESSAGES.indexOf(this);
-    DROPPED_MESSAGES.splice(idx, 1);
-}
-
-function GroundArrow(x, y, rotation) {
-    this.pos = {x: x, y:y};
-    this.rotation = rotation;
-    this.removing = false;
-    this.opacity = 1;
-}
-
-GroundArrow.prototype.remove = function(cb) {
-    this.removing = true;
-    this.removalCB = cb;
-}
-
-GroundArrow.prototype.update = function() {
-    if (this.opacity <= 0) {
-        this.removalCB && this.removalCB(this);
-        return;
-    }
-    if (this.removing) {
-        this.opacity -= .1;
-    }
-}
-
-GroundArrow.prototype.draw = function() {
-    ctx.save();
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(0,0,0,' + this.opacity + ')';
-    ctx.lineWidth = 4;
-    ctx.translate(this.pos.x, this.pos.y);
-    ctx.translate(0, -5);
-    ctx.rotate(this.rotation);
-    ctx.translate(0, 5);
-    ctx.moveTo(0, 2);
-    ctx.lineTo(-5, -5);
-    ctx.lineTo(-2, -5);
-    ctx.lineTo(-2, -25)
-    ctx.lineTo(2, -25);
-    ctx.lineTo(2, -5);
-    ctx.lineTo(5, -5);
-    ctx.closePath();
-
-    ctx.scale(1.4,1.4);
-    ctx.stroke();
-    // ctx.stroke();
-    ctx.restore();
-}
-
-function Bullet(x, y, rotation) {
-    this.speed = 5;
-    this.pos = {x: x, y: y};
-    this.origPos = {x: x, y: y};
-    this.rotation = rotation;
-    this.vel = {};
-    this.vel.x = Math.cos(this.rotation) * this.speed;
-    this.vel.y = Math.sin(this.rotation) * this.speed;
-}
-
-Bullet.prototype.update = function(t) {
-    this.pos.x += this.vel.x;
-    this.pos.y += this.vel.y;
-
-    let distFromStart = Math.sqrt(Math.pow(this.pos.x - this.origPos.x, 2) + Math.pow(this.pos.y - this.origPos.y, 2));
-    if (distFromStart > 500) {
-        this.remove();
-    }
-}
-
-Bullet.prototype.draw = function () {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(this.pos.x, this.pos.y, 5, 0, 2 * Math.PI);
-    ctx.fillStyle = 'red';
-    ctx.fill();
-    ctx.restore();
-}
-
-Bullet.prototype.remove = function() {
-    console.log('deleting bullet');
-    let idx = FIRED_BULLETS.indexOf(this);
-    FIRED_BULLETS.splice(idx, 1);
-}
-
 /** Game State */
-// let player = new MsgDropper(500, 500);
+let player = new MsgDropper(500, 500);
 // let player = new Courier(500, 500);
-let player = new Dictator(500, 500);
+// let player = new Dictator(500, 500);
 let globalTime = 0;
 let userID;
 
@@ -491,6 +358,13 @@ function updateGameStateFromServer(data) {
         let internalP = EXTERNAL_PLAYERS[pKey];
         internalP.pos = p.pos;
     });
+
+    /** Update arrows */
+    DROPPED_ARROWS = data.arrows;
+    /** Update Bullets */
+    FIRED_BULLETS = data.bullets;
+    /** Update Messages */
+    DROPPED_MESSAGES = data.messages;
 }
 
 /** Bootup */
@@ -503,7 +377,6 @@ function update(time) {
     let deltaTime = time - globalTime;
 
     player.update(deltaTime);
-    updateBackground();
 
     // Check collisions
     checkCollisions();
@@ -511,23 +384,6 @@ function update(time) {
     draw();
     window.requestAnimationFrame(update);
     globalTime = time;
-}
-
-function updateBackground() {
-    updateArrows();
-    updateBullets();
-}
-
-function updateArrows() {
-    for (let arrow = 0; arrow < DROPPED_ARROWS.length; arrow++) {
-        DROPPED_ARROWS[arrow].update();
-    }
-}
-
-function updateBullets() {
-    for (let bullet = 0; bullet < FIRED_BULLETS.length; bullet++) {
-        FIRED_BULLETS[bullet].update();
-    }
 }
 
 function checkCollisions() {
@@ -588,17 +444,20 @@ function drawBackground() {
 }
 function drawMessages() {
     for (let msg = 0; msg < DROPPED_MESSAGES.length; msg++) {
-        DROPPED_MESSAGES[msg].draw();
+        let drawData = DROPPED_MESSAGES[msg];
+        Message.draw(drawData.pos, drawData.size);
     }
 }
 function drawArrows() {
     for (let arrow = 0; arrow < DROPPED_ARROWS.length; arrow++) {
-        DROPPED_ARROWS[arrow].draw();
+        let drawData = DROPPED_ARROWS[arrow];
+        GroundArrow.draw(drawData.pos, drawData.rotation, drawData.opacity);
     }
 }
 function drawBullets() {
     for (let bullet = 0; bullet < FIRED_BULLETS.length; bullet++) {
-        FIRED_BULLETS[bullet].draw();
+        let drawData = FIRED_BULLETS[bullet];
+        Bullet.draw(drawData.pos);
     }
 }
 function drawCursor() {

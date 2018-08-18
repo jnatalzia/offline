@@ -54,21 +54,70 @@ class GameRoom {
 		this.users = {};
 		this.id = id;
 		this.waitingForPlayers = true;
+
 		this.setupUpdate();
+
+		this.bullets = [];
+		this.arrows = [];
+		this.activeArrows = 0;
+		this.messages = [];
+	}
+
+	addMessage(pos) {
+		this.messages.push(new Message(pos.x, pos.y));
+	}
+
+	addArrow(pos, rotation) {
+		if (this.activeArrows === MAX_DROPPED_ARROWS) {
+			this.activeArrows--;
+			for (let i = 0; i < this.arrows.length; i++) {
+				if (!this.arrows[i].removing) {
+					var removalIndex = i;
+					break;
+				}
+			}
+			this.arrows[removalIndex].remove(() => {
+				this.arrows.splice(0, 1);
+			});
+		}
+		this.activeArrows++;
+		this.arrows.push(new GroundArrow(pos.x, pos.y, rotation));
+	}
+
+	addBullet(pos, rotation) {
+		const that = this;
+		this.bullets.push(new Bullet(pos.x, pos.y, rotation, function() {
+			let idx = that.bullets.indexOf(this);
+			that.bullets.splice(idx, 1);
+		}));
 	}
 
 	setupUpdate() {
-		setInterval(function() {
-			this.updateClients();
-		}.bind(this), TICK_TIME)
+		setInterval(this.update.bind(this), TICK_TIME)
 	}
 
 	updateClients() {
 		const userKeys = Object.keys(this.users);
 		let formattedUserData = this.getUserInfo();
 		userKeys.forEach(uid => {
-			this.users[uid].socket.emit('game-update', { players: formattedUserData });
+			this.users[uid].socket.emit('game-update', {
+				players: formattedUserData,
+				arrows: this.arrows,
+				bullets: this.bullets,
+				messages: this.messages
+			});
 		});
+	}
+
+	update() {
+		this.bullets.forEach(b => {
+			b.update();
+		});
+		this.arrows.forEach(a => {
+			a.update();
+		})
+
+		this.updateClients();
 	}
 
 	getUserInfo() {
@@ -168,6 +217,15 @@ class User {
 			findRoom(this);
 			this.emitOtherPlayers();
 		});
+		this.socket.on('drop-arrow', function(data) {
+			this.room.addArrow(data.pos, data.rotation);
+		}.bind(this));
+		this.socket.on('fire-bullet', function(data) {
+			this.room.addBullet(data.pos, data.rotation);
+		}.bind(this));
+		this.socket.on('drop-message', function(data) {
+			this.room.addMessage(data.pos);
+		}.bind(this));
 	}
 
 	start() {
