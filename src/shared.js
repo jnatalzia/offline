@@ -10,8 +10,25 @@ const MAX_DROPPED_MESSAGES = 3;
 const PLAYER_WIDTH = 20;
 const PLAYER_HEIGHT = 15;
 
+/** Utils */
+function genId() {
+	return Math.random().toString(36).substring(7);
+}
+
+function hasOverlap(hb1, hb2) {
+    return !(hb1.x + hb1.w < hb2.x ||
+        hb1.x > hb2.x + hb2.w ||
+        hb1.y + hb1.h < hb2.y ||
+        hb1.y > hb2.y + hb2.h)
+}
+
+function getPlayerHitbox(u) {
+    return {x: u.pos.x - PLAYER_WIDTH / 2, y: u.pos.y - PLAYER_HEIGHT / 2, w: PLAYER_WIDTH, h: PLAYER_HEIGHT};
+}
+
 /** Shared draw classes */
 function GroundArrow(x, y, rotation) {
+    this.id = genId();
     this.pos = {x: x, y:y};
     this.rotation = rotation;
     this.removing = false;
@@ -58,6 +75,7 @@ GroundArrow.draw = function(pos, rotation, opacity) {
 }
 
 function Bullet(x, y, rotation, removeCB) {
+    this.id = genId();
     this.speed = 10;
     this.pos = {x: x, y: y};
     this.origPos = {x: x, y: y};
@@ -88,6 +106,7 @@ Bullet.draw = function (pos) {
 }
 
 function Message(x, y, destroy) {
+    this.id = genId();
     this.pos = {x: x, y: y};
     this.size = {
         w: 20,
@@ -117,8 +136,4 @@ Message.prototype.getHitbox = function() {
         w: this.size.w,
         h: this.size.h
     }
-}
-
-Message.prototype.read = function() {
-    console.log("The encoded message tells you: " + this.coords);
 }

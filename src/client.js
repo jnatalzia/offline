@@ -41,12 +41,6 @@ function handleMouseMove(e) {
 }
 
 /** Utils */
-function hasOverlap(hb1, hb2) {
-    return !(hb1.x + hb1.w < hb2.x ||
-        hb1.x > hb2.x + hb2.w ||
-        hb1.y + hb1.h < hb2.y ||
-        hb1.y > hb2.y + hb2.h)
-}
 
 function getClassFromType(type) {
     switch(type) {
@@ -305,14 +299,20 @@ function Courier(x, y) {
 
 inherits(Courier, Player);
 
+Courier.prototype.addEventHandlers = function() {
+    socket.on('message-collision', (msg) => {
+        this.canPickUp(msg);
+    });
+}
+
 Courier.prototype.update = function(t) {
     this.super_.prototype.update.apply(this, arguments);
 }
 
 Courier.prototype.canPickUp = function(msg) {
     if (KEY_CHECKER[32]) {
-        msg.read();
-        msg.destroy();
+        console.log("The encoded message tells you: " + msg.coords);
+        socket.emit('destroy-message', { id: msg.id });
     }
 }
 
@@ -384,23 +384,6 @@ function update(time) {
     draw();
     window.requestAnimationFrame(update);
     globalTime = time;
-}
-
-function checkCollisions() {
-    // Current Player and Message
-    if (player.type === PLAYER_COURIER || player.type === PLAYER_DICTATOR) {
-        checkMessageCollisions();
-    }
-}
-
-function checkMessageCollisions() {
-    for (let m = 0; m < DROPPED_MESSAGES.length; m++) {
-        let msg = DROPPED_MESSAGES[m];
-        if (hasOverlap(player.getHitbox(), msg.getHitbox())) {
-            player.canPickUp(msg);
-            break;
-        }
-    }
 }
 
 /** Main Draw Loop */

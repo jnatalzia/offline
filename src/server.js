@@ -9,11 +9,6 @@ const ROOMS = {
 
 };
 
-/** Utils */
-function genId() {
-	return Math.random().toString(36).substring(7);
-}
-
 /**
  * Remove user session
  * @param {User} user
@@ -75,6 +70,11 @@ class GameRoom {
 		}));
 	}
 
+	deleteMessage(id) {
+		let msg = this.messages.filter((m) => m.id === id)[0];
+		msg.destroy();
+	}
+
 	addArrow(pos, rotation) {
 		if (this.activeArrows === MAX_DROPPED_ARROWS) {
 			this.activeArrows--;
@@ -126,6 +126,24 @@ class GameRoom {
 		})
 
 		this.updateClients();
+		this.checkCollisions();
+	}
+
+	checkCollisions() {
+		Object.keys(this.users).forEach(k => {
+			let user = this.users[k];
+			this.checkMessageCollisions(user);
+		});
+	}
+
+	checkMessageCollisions(u) {
+		for (let m = 0; m < this.messages.length; m++) {
+			let msg = this.messages[m];
+			if (hasOverlap(getPlayerHitbox(u), msg.getHitbox())) {
+				u.socket.emit('message-collision', msg);
+				break;
+			}
+		}
 	}
 
 	getUserInfo() {
@@ -233,6 +251,9 @@ class User {
 		}.bind(this));
 		this.socket.on('drop-message', function(data) {
 			this.room.addMessage(data.pos);
+		}.bind(this));
+		this.socket.on('destroy-message', function(data) {
+			this.room.deleteMessage(data.id);
 		}.bind(this));
 	}
 
