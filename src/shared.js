@@ -7,6 +7,8 @@ const PLAYER_MESSAGE_DROPPER = 'MSGDROPPER';
 const TICK_TIME = 1000/60;
 const MAX_DROPPED_ARROWS = 6;
 const MAX_DROPPED_MESSAGES = 3;
+const PLAYER_WIDTH = 20;
+const PLAYER_HEIGHT = 15;
 
 /** Shared draw classes */
 function GroundArrow(x, y, rotation) {
@@ -85,13 +87,14 @@ Bullet.draw = function (pos) {
     ctx.restore();
 }
 
-function Message(x, y) {
+function Message(x, y, destroy) {
     this.pos = {x: x, y: y};
     this.size = {
         w: 20,
         h: 10
     };
     this.coords = [112, 45];
+    this.destroy = destroy;
 }
 
 Message.draw = function(pos, size) {
@@ -118,9 +121,4 @@ Message.prototype.getHitbox = function() {
 
 Message.prototype.read = function() {
     console.log("The encoded message tells you: " + this.coords);
-}
-
-Message.prototype.destroy = function() {
-    let idx = DROPPED_MESSAGES.indexOf(this);
-    DROPPED_MESSAGES.splice(idx, 1);
 }

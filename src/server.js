@@ -61,10 +61,18 @@ class GameRoom {
 		this.arrows = [];
 		this.activeArrows = 0;
 		this.messages = [];
+		// TEST DATA
+		this.addMessage({x: 500, y: 400});
+		this.addMessage({x: 600, y: 400});
+		this.addMessage({x: 300, y: 400});
 	}
 
 	addMessage(pos) {
-		this.messages.push(new Message(pos.x, pos.y));
+		const that = this;
+		this.messages.push(new Message(pos.x, pos.y, function() {
+			let idx = that.messages.indexOf(this);
+			that.messages.splice(idx, 1);
+		}));
 	}
 
 	addArrow(pos, rotation) {

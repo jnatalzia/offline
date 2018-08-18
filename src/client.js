@@ -104,7 +104,7 @@ function Extendable() {}
 /** Player Class */
 function Player(x, y, isNotPlayer) {
     this.pos = { x: x, y: y };
-    this.size = { w: 20, h: 15 };
+    this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
     this.speed = 12;
     this.isPlayer = !isNotPlayer;
     if (this.isPlayer) {
@@ -116,7 +116,7 @@ Player.prototype.addEventHandlers = function() {
 
 }
 
-Player.prototype.getAdjustedSpeed = function(t) {
+Player.prototype.getAdjustedSpeed = function() {
     return (KEY_CHECKER[16] ? this.speed * 1.6 : this.speed) * (t/100);
 }
 
@@ -305,8 +305,8 @@ function Courier(x, y) {
 
 inherits(Courier, Player);
 
-Courier.prototype.update = function() {
-    this.super_.prototype.update.call(this);
+Courier.prototype.update = function(t) {
+    this.super_.prototype.update.apply(this, arguments);
 }
 
 Courier.prototype.canPickUp = function(msg) {
@@ -316,8 +316,8 @@ Courier.prototype.canPickUp = function(msg) {
     }
 }
 
-Courier.prototype.getAdjustedSpeed = function() {
-    return this.speed;
+Courier.prototype.getAdjustedSpeed = function(t) {
+    return this.speed * (t/100);
 }
 
 function Dictator(x, y, isNotPlayer) {
@@ -343,8 +343,8 @@ Dictator.prototype.fireBullet = function() {
 }
 
 /** Game State */
-let player = new MsgDropper(500, 500);
-// let player = new Courier(500, 500);
+// let player = new MsgDropper(500, 500);
+let player = new Courier(500, 500);
 // let player = new Dictator(500, 500);
 let globalTime = 0;
 let userID;
@@ -379,7 +379,7 @@ function update(time) {
     player.update(deltaTime);
 
     // Check collisions
-    checkCollisions();
+    // checkCollisions();
 
     draw();
     window.requestAnimationFrame(update);
