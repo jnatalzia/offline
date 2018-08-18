@@ -20,10 +20,7 @@ const MAX_DROPPED_MESSAGES = 3;
 const DROPPED_ARROWS = [];
 const MAX_DROPPED_ARROWS = 6;
 
-/** Types/Enums */
-const PLAYER_COURIER = 'COURIER';
-const PLAYER_DICTATOR = 'DICTATOR';
-const PLAYER_MESSAGE_DROPPER = 'MSGDROPPER';
+const EXTERNAL_PLAYERS = [];
 
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
@@ -50,6 +47,15 @@ function hasOverlap(hb1, hb2) {
         hb1.x > hb2.x + hb2.w ||
         hb1.y + hb1.h < hb2.y ||
         hb1.y > hb2.y + hb2.h)
+}
+
+function getClassFromType(type) {
+    switch(type) {
+        case PLAYER_COURIER:
+            return Courier;
+        case PLAYER_DICTATOR:
+            return Dictat
+    }
 }
 
 /** Game State */
@@ -393,6 +399,18 @@ GroundArrow.prototype.draw = function() {
 // let player = new MsgDropper(500, 500);
 let player = new Courier(500, 500);
 let globalTime = 0;
+let userID;
+
+function updateGameStateFromServer(data) {
+    let players = data.players;
+    delete players[userID];
+    let playerKeys = Object.keys(players);
+    playerKeys.forEach(pKey => {
+        let p = players[pKey];
+        let internalP = players[pKey];
+        internalP.pos = p.pos;
+    });
+}
 
 /** Bootup */
 function loadMap() {
@@ -444,6 +462,7 @@ function draw() {
     clearBoard();
     drawBackground();
     player.draw();
+    drawOtherPlayers();
     drawUI();
 }
 function drawUI() {
@@ -492,5 +511,39 @@ function drawCursor() {
     ctx.strokeStyle = 'red';
     ctx.stroke();
 }
+
+function drawOtherPlayers() {
+    Object.keys(EXTERNAL_PLAYERS).forEach(p => {
+        EXTERNAL_PLAYERS[p].draw();
+    });
+}
+
+/** Socket listeners */
+socket.on('set-id', function(data) {
+    userID = data.id;
+});
+
+socket.on('game-update', function(data) {
+    updateGameStateFromServer(data);
+});
+
+socket.on('player-added', function(data) {
+    const type = getClassFromType(data.type);
+    EXTERNAL_PLAYERS[data.id] = {};
+});
+
+socket.on('player-removed', function(data) {
+    delete EXTERNAL_PLAYERS[data.id];
+});
+
+/** Send client updates to server */
+function updateServer() {
+    socket.emit('client-update', {
+        playerPos: player.pos
+    });
+}
+
+setInterval(updateServer, 1000/30);
+
 /** Start game */
 loadMap();
