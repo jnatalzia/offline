@@ -20,7 +20,7 @@ function genId() {
  */
 function removeUser(user) {
 	users.splice(users.indexOf(user), 1);
-	user.room.removeUser(user);
+	if (user.room) user.room.removeUser(user);
 }
 
 /** Room Handling */
@@ -58,20 +58,29 @@ class GameRoom {
 	}
 
 	setupUpdate() {
-
+		setInterval(function() {
+			this.updateClients();
+		}.bind(this), TICK_TIME)
 	}
 
 	updateClients() {
 		const userKeys = Object.keys(this.users);
-		let formattedUserData = userKeys.reduce((acc, currVal) => {
+		let formattedUserData = this.getUserInfo();
+		userKeys.forEach(uid => {
+			this.users[uid].socket.emit('game-update', { players: formattedUserData });
+		});
+	}
+
+	getUserInfo() {
+		const userKeys = Object.keys(this.users);
+		return userKeys.reduce((acc, currVal) => {
 			acc[currVal] = {
-				pos: u.position
+				pos: this.users[currVal].pos,
+				type: this.users[currVal].type,
+				id: this.users[currVal].id
 			};
 			return acc;
 		}, {});
-		userKeys.forEach(u => {
-			u.socket.emit('game-update', { players: formattedUserData });
-		});
 	}
 
 	/**
@@ -87,8 +96,8 @@ class GameRoom {
 		console.log('Adding user {' + u.id + '} to room: ' + this.id);
 		u.room = this;
 
-		Object.keys(this.users).forEach(u => {
-			u.socket.emit('player-added', { id: u.id });
+		Object.keys(this.users).forEach(uid => {
+			this.users[uid].socket.emit('player-added', { id: u.id, type: u.type, pos: u.pos });
 		});
 
 		this.users[u.id] = u;
@@ -104,8 +113,10 @@ class GameRoom {
 
 	removeUser(u) {
 		delete this.users[u.id];
-		Object.keys(this.users).forEach(u => {
-			u.socket.emit('player-removed', { id: u.id });
+		console.log('Removing user with id: ' + u.id)
+		Object.keys(this.users).forEach(uid => {
+			console.log('Sending player removed to id: ' + uid);
+			this.users[uid].socket.emit('player-removed', { id: u.id });
 		});
 		console.log('Deleted user from room: ' + this.id + ', key count: ' + Object.keys(this.users).length);
 
@@ -129,18 +140,33 @@ class User {
 	/**
 	 * @param {Socket} socket
 	 */
-	constructor(socket) {
+	constructor(socket, type) {
 		this.id = genId();
 		this.socket = socket;
-		this.socket.emit('set-id', { id: this.id });
 		this.room = null;
-		this.position = {};
+		this.pos = {x: -500, y: -500};
 		this.setupSocketHandlers();
+		this.socket.emit('set-id', {id: this.id});
+	}
+
+	emitOtherPlayers() {
+		let formattedPlayers = this.room.getUserInfo();
+		console.log("emitting " + Object.keys(this.room.users).length + " users to client");
+		this.socket.emit('set-game-info', {
+			players: formattedPlayers,
+			test: 'test'
+		});
 	}
 
 	setupSocketHandlers() {
 		this.socket.on('client-update', (data) => {
-			this.position = data.playerPos;
+			this.pos = data.playerPos;
+		});
+		this.socket.on('ready', (data) => {
+			this.type = data.type;
+			this.pos = data.pos;
+			findRoom(this);
+			this.emitOtherPlayers();
 		});
 	}
 
@@ -167,7 +193,6 @@ module.exports = {
 
 	io: (socket) => {
 		const user = new User(socket);
-		findRoom(user);
 
 		socket.on("disconnect", () => {
 			console.log("Disconnected: " + socket.id);

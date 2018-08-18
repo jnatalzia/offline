@@ -55,7 +55,9 @@ function getClassFromType(type) {
         case PLAYER_COURIER:
             return Courier;
         case PLAYER_DICTATOR:
-            return Dictat
+            return Dictator;
+        case PLAYER_MESSAGE_DROPPER:
+            return MsgDropper;
     }
 }
 
@@ -114,10 +116,11 @@ function inherits (ctor, superCtor) {
 function Extendable() {}
 
 /** Player Class */
-function Player(x, y) {
+function Player(x, y, isNotPlayer) {
     this.pos = { x: x, y: y };
     this.size = { w: 20, h: 15 };
     this.speed = 2;
+    this.isPlayer = !isNotPlayer;
 }
 
 Player.prototype.getAdjustedSpeed = function() {
@@ -144,6 +147,18 @@ Player.prototype.update = function() {
 Player.prototype.draw = function() {
     ctx.save();
     ctx.translate(CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+    ctx.beginPath();
+    ctx.rect(-this.size.w/2, -this.size.h/2, this.size.w, this.size.h);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#111';
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
+Player.prototype.absoluteDraw = function() {
+    ctx.save();
+    ctx.translate(this.pos.x, this.pos.y);
     ctx.beginPath();
     ctx.rect(-this.size.w/2, -this.size.h/2, this.size.w, this.size.h);
     ctx.fillStyle = '#fff';
@@ -314,10 +329,12 @@ Courier.prototype.getAdjustedSpeed = function() {
     return this.speed;
 }
 
-function Dictator(x, y) {
+function Dictator(x, y, isNotPlayer) {
     this.super_.apply(this, arguments);
     this.type = PLAYER_DICTATOR;
-    this.attachEventListeners();
+    if (this.isPlayer) {
+        this.attachEventListeners();
+    }
 }
 
 inherits(Dictator, Player);
@@ -471,7 +488,7 @@ function updateGameStateFromServer(data) {
     let playerKeys = Object.keys(players);
     playerKeys.forEach(pKey => {
         let p = players[pKey];
-        let internalP = players[pKey];
+        let internalP = EXTERNAL_PLAYERS[pKey];
         internalP.pos = p.pos;
     });
 }
@@ -535,7 +552,6 @@ function draw() {
     clearBoard();
     drawBackground();
     player.draw();
-    drawOtherPlayers();
     drawUI();
 }
 function drawUI() {
@@ -567,6 +583,7 @@ function drawBackground() {
     drawMessages();
     drawArrows();
     drawBullets();
+    drawOtherPlayers();
     ctx.restore();
 }
 function drawMessages() {
@@ -593,13 +610,25 @@ function drawCursor() {
 
 function drawOtherPlayers() {
     Object.keys(EXTERNAL_PLAYERS).forEach(p => {
-        EXTERNAL_PLAYERS[p].draw();
+        EXTERNAL_PLAYERS[p].absoluteDraw();
     });
 }
 
 /** Socket listeners */
 socket.on('set-id', function(data) {
+    console.log("SET ID");
     userID = data.id;
+});
+socket.on('set-game-info', function(data) {
+    delete data.players[userID];
+
+    const playerKeys = Object.keys(data.players);
+    playerKeys.forEach(i => {
+        let p = data.players[i];
+        console.log('adding player with id: ' + p.id);
+        const type = getClassFromType(p.type);
+        EXTERNAL_PLAYERS[p.id] = new type(p.pos.x, p.pos.y, true);
+    });
 });
 
 socket.on('game-update', function(data) {
@@ -607,8 +636,9 @@ socket.on('game-update', function(data) {
 });
 
 socket.on('player-added', function(data) {
+    console.log('Adding player with id: ' + data.id);
     const type = getClassFromType(data.type);
-    EXTERNAL_PLAYERS[data.id] = {};
+    EXTERNAL_PLAYERS[data.id] = new type(data.pos.x, data.pos.y, true);
 });
 
 socket.on('player-removed', function(data) {
@@ -622,7 +652,12 @@ function updateServer() {
     });
 }
 
-setInterval(updateServer, 1000/30);
+socket.emit('ready', {
+    type: player.type,
+    pos: player.pos
+});
+
+setInterval(updateServer, TICK_TIME);
 
 /** Start game */
 loadMap();
