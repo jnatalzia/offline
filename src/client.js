@@ -8,8 +8,8 @@ const CANVAS_HEIGHT = 600;
 const CURSOR_RADIUS = 10;
 
 const PIXELS_PER_UNIT = 50;
-const MAP_WIDTH = 5000;
-const MAP_HEIGHT = 5000;
+const MAP_WIDTH = 1000;
+const MAP_HEIGHT = 1000;
 
 const KEY_CHECKER = {};
 
@@ -19,6 +19,8 @@ const MAX_DROPPED_MESSAGES = 3;
 
 const DROPPED_ARROWS = [];
 const MAX_DROPPED_ARROWS = 6;
+
+const FIRED_BULLETS = [];
 
 /** Types/Enums */
 const PLAYER_COURIER = 'COURIER';
@@ -82,6 +84,10 @@ function addArrow(pos, rotation) {
     }
     activeArrows++;
     DROPPED_ARROWS.push(new GroundArrow(pos.x, pos.y, rotation));
+}
+
+function addBullet(pos, rotation) {
+    FIRED_BULLETS.push(new Bullet(pos.x, pos.y, rotation));
 }
 
 /** Game Classes */
@@ -303,6 +309,29 @@ Courier.prototype.getAdjustedSpeed = function() {
     return this.speed;
 }
 
+function Dictator(x, y) {
+    this.super_.apply(this, arguments);
+    this.type = PLAYER_DICTATOR;
+    this.attachEventListeners();
+}
+
+inherits(Dictator, Player);
+
+Dictator.prototype.canPickUp = function(msg) {
+    if (KEY_CHECKER[32]) {
+        msg.destroy();
+    }
+}
+
+Dictator.prototype.attachEventListeners = function() {
+    canvas.addEventListener('click', this.fireBullet.bind(this));
+}
+
+Dictator.prototype.fireBullet = function() {
+    let derivedRadianRotation = Math.atan2((mousePos.y - CANVAS_HEIGHT / 2), (mousePos.x - CANVAS_WIDTH / 2));
+    addBullet(this.pos, derivedRadianRotation, this);
+}
+
 function Message(x, y) {
     this.pos = {x: x, y: y};
     this.size = {
@@ -389,9 +418,45 @@ GroundArrow.prototype.draw = function() {
     ctx.restore();
 }
 
+function Bullet(x, y, rotation) {
+    this.speed = 5;
+    this.pos = {x: x, y: y};
+    this.origPos = {x: x, y: y};
+    this.rotation = rotation;
+    this.vel = {};
+    this.vel.x = Math.cos(this.rotation) * this.speed;
+    this.vel.y = Math.sin(this.rotation) * this.speed;
+}
+
+Bullet.prototype.update = function(t) {
+    this.pos.x += this.vel.x;
+    this.pos.y += this.vel.y;
+
+    let distFromStart = Math.sqrt(Math.pow(this.pos.x - this.origPos.x, 2) + Math.pow(this.pos.y - this.origPos.y, 2));
+    if (distFromStart > 500) {
+        this.remove();
+    }
+}
+
+Bullet.prototype.draw = function () {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.pos.x, this.pos.y, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = 'red';
+    ctx.fill();
+    ctx.restore();
+}
+
+Bullet.prototype.remove = function() {
+    console.log('deleting bullet');
+    let idx = FIRED_BULLETS.indexOf(this);
+    FIRED_BULLETS.splice(idx, 1);
+}
+
 /** Game State */
 // let player = new MsgDropper(500, 500);
-let player = new Courier(500, 500);
+// let player = new Courier(500, 500);
+let player = new Dictator(500, 500);
 let globalTime = 0;
 
 /** Bootup */
@@ -416,6 +481,7 @@ function update(time) {
 
 function updateBackground() {
     updateArrows();
+    updateBullets();
 }
 
 function updateArrows() {
@@ -424,19 +490,27 @@ function updateArrows() {
     }
 }
 
-function checkCollisions() {
-    // Current Player and Message
-    if (player.type === PLAYER_COURIER) {
-        checkCourierCollisions();
+function updateBullets() {
+    for (let bullet = 0; bullet < FIRED_BULLETS.length; bullet++) {
+        FIRED_BULLETS[bullet].update();
     }
 }
 
-function checkCourierCollisions() {
-    DROPPED_MESSAGES.forEach((msg, idx) => {
+function checkCollisions() {
+    // Current Player and Message
+    if (player.type === PLAYER_COURIER || player.type === PLAYER_DICTATOR) {
+        checkMessageCollisions();
+    }
+}
+
+function checkMessageCollisions() {
+    for (let m = 0; m < DROPPED_MESSAGES.length; m++) {
+        let msg = DROPPED_MESSAGES[m];
         if (hasOverlap(player.getHitbox(), msg.getHitbox())) {
             player.canPickUp(msg);
+            break;
         }
-    });
+    }
 }
 
 /** Main Draw Loop */
@@ -474,6 +548,7 @@ function drawBackground() {
     }
     drawMessages();
     drawArrows();
+    drawBullets();
     ctx.restore();
 }
 function drawMessages() {
@@ -484,6 +559,11 @@ function drawMessages() {
 function drawArrows() {
     for (let arrow = 0; arrow < DROPPED_ARROWS.length; arrow++) {
         DROPPED_ARROWS[arrow].draw();
+    }
+}
+function drawBullets() {
+    for (let bullet = 0; bullet < FIRED_BULLETS.length; bullet++) {
+        FIRED_BULLETS[bullet].draw();
     }
 }
 function drawCursor() {
