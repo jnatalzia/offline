@@ -4,6 +4,13 @@
 const PLAYER_COURIER = 'COURIER';
 const PLAYER_DICTATOR = 'DICTATOR';
 const PLAYER_MESSAGE_DROPPER = 'MSGDROPPER';
+
+const PLAYER_ROLE_IDX = {
+    'MSGDROPPER': 0,
+    'COURIER': 1,
+    'DICTATOR': 2
+};
+
 const TICK_TIME = 1000/60;
 const MAX_DROPPED_ARROWS = 6;
 const MAX_DROPPED_MESSAGES = 3;
@@ -83,6 +90,7 @@ function Bullet(x, y, rotation, removeCB) {
     this.vel = {};
     this.vel.x = Math.cos(this.rotation) * this.speed;
     this.vel.y = Math.sin(this.rotation) * this.speed;
+    this.rad = 5;
     this.remove = removeCB;
 }
 
@@ -96,13 +104,32 @@ Bullet.prototype.update = function(t) {
     }
 }
 
-Bullet.draw = function (pos) {
+Bullet.draw = function (pos, rad) {
     ctx.save();
     ctx.beginPath();
-    ctx.arc(pos.x, pos.y, 5, 0, 2 * Math.PI);
+    ctx.arc(pos.x, pos.y, rad, 0, 2 * Math.PI);
     ctx.fillStyle = 'red';
     ctx.fill();
+    ctx.strokeStyle = 'blue';
+    let r2 = rad * 2;
+    let hitbox = {
+        x: ( r2 ) - r2 - 2,
+        y: 2,
+        w: (r2) - 4,
+        h: (r2) - 4
+    };
+    ctx.strokeRect(hitbox.x, hitbox.y, hitbox.w, hitbox.h);
     ctx.restore();
+}
+
+Bullet.prototype.getHitbox = function() {
+    let r2 = this.rad * 2;
+    return {
+        x: ( r2 ) - r2 - 2,
+        y: 2,
+        w: (r2) - 4,
+        h: (r2) - 4
+    }
 }
 
 function Message(x, y, destroy) {

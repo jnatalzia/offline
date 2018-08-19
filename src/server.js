@@ -47,6 +47,7 @@ function createRoom() {
 class GameRoom {
 	constructor(id) {
 		this.users = {};
+		this.takenRoles = [0, 0, 0];
 		this.id = id;
 		this.waitingForPlayers = true;
 
@@ -108,6 +109,9 @@ class GameRoom {
 		const userKeys = Object.keys(this.users);
 		let formattedUserData = this.getUserInfo();
 		userKeys.forEach(uid => {
+			if (!this.users[uid].ready) {
+				return;
+			}
 			this.users[uid].socket.emit('game-update', {
 				players: formattedUserData,
 				arrows: this.arrows,
@@ -133,7 +137,9 @@ class GameRoom {
 		Object.keys(this.users).forEach(k => {
 			let user = this.users[k];
 			this.checkMessageCollisions(user);
-			this.checkDeathCollisions(user);
+			if (user.type !== PLAYER_DICTATOR) {
+				this.checkDeathCollisions(user);
+			}
 		});
 	}
 
@@ -188,8 +194,12 @@ class GameRoom {
 		console.log('Adding user {' + u.id + '} to room: ' + this.id);
 		u.room = this;
 		let type = this.selectPlayerType();
-		console.log('USER OF TYPE: ' + type);
 		u.type = type;
+		console.log('User of type: ' + type + 'added.')
+		console.log(PLAYER_ROLE_IDX[type]);
+		this.takenRoles[PLAYER_ROLE_IDX[type]] = 1;
+		console.log(this.takenRoles);
+
 		u.socket.emit('set-type', {
 			type: type
 		});
@@ -214,6 +224,7 @@ class GameRoom {
 	removeUser(u) {
 		delete this.users[u.id];
 		console.log('Removing user with id: ' + u.id)
+		this.takenRoles[PLAYER_ROLE_IDX[u.type]] = 0;
 		Object.keys(this.users).forEach(uid => {
 			console.log('Sending player removed to id: ' + uid);
 			this.users[uid].socket.emit('player-removed', { id: u.id });
@@ -232,16 +243,10 @@ class GameRoom {
 	}
 
 	selectPlayerType() {
-		switch(this.numUsers()) {
-			case 0:
-				return PLAYER_MESSAGE_DROPPER;
-			case 1:
-				return PLAYER_COURIER;
-			case 2:
-				return PLAYER_DICTATOR;
-			default:
-				return 'UNKNOWN';
-		}
+		const availableRoles = [PLAYER_MESSAGE_DROPPER, PLAYER_DICTATOR, PLAYER_COURIER]
+			.filter((f) => !this.takenRoles[PLAYER_ROLE_IDX[f]]);
+
+		return availableRoles[Math.floor(Math.random() * availableRoles.length)];
 	}
 }
 
@@ -268,8 +273,7 @@ class User {
 		let formattedPlayers = this.room.getUserInfo();
 		console.log("emitting " + Object.keys(this.room.users).length + " users to client");
 		this.socket.emit('set-game-info', {
-			players: formattedPlayers,
-			test: 'test'
+			players: formattedPlayers
 		});
 	}
 

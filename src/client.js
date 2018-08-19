@@ -356,7 +356,6 @@ let userID;
 
 function updateGameStateFromServer(data) {
     let players = data.players;
-    // debugger;
     delete players[userID];
     let playerKeys = Object.keys(players);
     playerKeys.forEach(pKey => {
@@ -445,7 +444,7 @@ function drawArrows() {
 function drawBullets() {
     for (let bullet = 0; bullet < FIRED_BULLETS.length; bullet++) {
         let drawData = FIRED_BULLETS[bullet];
-        Bullet.draw(drawData.pos);
+        Bullet.draw(drawData.pos, drawData.rad);
     }
 }
 function drawCursor() {
