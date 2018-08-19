@@ -1,5 +1,8 @@
 "use strict";
 
+const MAP_WIDTH = 1000;
+const MAP_HEIGHT = 1000;
+
 /** Types/Enums */
 const PLAYER_COURIER = 'COURIER';
 const PLAYER_DICTATOR = 'DICTATOR';
@@ -17,9 +20,25 @@ const MAX_DROPPED_MESSAGES = 3;
 const PLAYER_WIDTH = 20;
 const PLAYER_HEIGHT = 15;
 
+const PIXELS_PER_UNIT = 50;
+const GRID_INTERVAL = 5;
+
 /** Utils */
 function genId() {
 	return Math.random().toString(36).substring(7);
+}
+
+function getRandomEntryInArr(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function generateHitbox(pos, size) {
+    return {
+        x: pos.x - size.w/2,
+        y: pos.y - size.h/2,
+        w: size.w,
+        h: size.h
+    };
 }
 
 function hasOverlap(hb1, hb2) {
@@ -148,10 +167,23 @@ Message.draw = function(pos, size) {
 
 
 Message.prototype.getHitbox = function() {
-    return {
-        x: this.pos.x - this.size.w/2,
-        y: this.pos.y - this.size.h/2,
-        w: this.size.w,
-        h: this.size.h
-    }
+    return generateHitbox(this.pos, this.size);
+}
+
+/** Map Object Classes */
+
+function Building(x, y, w, h) {
+    this.pos = {x: x, y: y};
+    this.size = {w: w, h: h};
+    this.id = genId();
+}
+
+Building.draw = function(pos, size) {
+    ctx.fillStyle = '#000';
+    ctx.lineWidth = 0;
+    ctx.fillRect(pos.x - size.w / 2, pos.y - size.h / 2, size.w, size.h);
+}
+
+Building.prototype.getHitbox = function () {
+    return generateHitbox(this.pos, this.size);
 }

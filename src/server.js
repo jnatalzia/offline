@@ -9,6 +9,29 @@ const ROOMS = {
 
 };
 
+/** Server constants */
+let BUILDING_WIDTHS = [100, 110, 120, 130, 140, 150];
+let MAX_BUILDING_WIDTH = 150;
+
+let BUILD_X_OPTS = [];
+let adjustedWidth = MAP_WIDTH - MAX_BUILDING_WIDTH / 2;
+for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedWidth; i+= GRID_INTERVAL) {
+    BUILD_X_OPTS.push(i + GRID_INTERVAL);
+}
+let adjustedHeight = MAP_HEIGHT - MAX_BUILDING_WIDTH / 2;
+let BUILD_Y_OPTS = [];
+for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedHeight; i+= GRID_INTERVAL) {
+    BUILD_Y_OPTS.push(i + GRID_INTERVAL);
+}
+
+const X_CHUNKS = 3;
+const Y_CHUNKS = 3;
+
+const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
+const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
+
+const NUM_BUILDINGS = X_CHUNKS * Y_CHUNKS;
+        
 /**
  * Remove user session
  * @param {User} user
@@ -60,7 +83,47 @@ class GameRoom {
 		// TEST DATA
 		this.addMessage({x: 500, y: 400});
 		this.addMessage({x: 600, y: 400});
+		this.map = this.generateMap();
 	}
+
+	generateMap() {
+        let map = [];
+        console.log('Generating ' + NUM_BUILDINGS + ' buildings');
+		for (let i = 0; i < NUM_BUILDINGS; i++) {
+            let b = this.generateBuilding(i);
+
+            while (this.buildingOverlapsCurrent(b, map)) {
+                b = this.generateBuilding(i);
+            }
+
+            map.push(b);
+        }
+        return map;
+    }
+
+    buildingOverlapsCurrent(b, map) {
+        for (let eb = 0; eb < map.length; eb++) {
+            if (hasOverlap(b.getHitbox(), map[eb].getHitbox())) {
+                return true;
+            }
+        }
+    }
+    
+    generateBuilding(idx) {
+        let xAdjustedIndex = idx % X_CHUNKS;
+        let yAdjustedIndex = Math.floor(idx / X_CHUNKS);
+        /** Could make this a static array and pull from idx /shrug */
+        let xChunk = BUILD_X_OPTS.slice((xAdjustedIndex * X_INTERVALS_PER_CHUNK), (xAdjustedIndex * X_INTERVALS_PER_CHUNK) + X_INTERVALS_PER_CHUNK);
+        let yChunk = BUILD_X_OPTS.slice((yAdjustedIndex * Y_INTERVALS_PER_CHUNK), (yAdjustedIndex * Y_INTERVALS_PER_CHUNK) + Y_INTERVALS_PER_CHUNK);
+
+        let bw = getRandomEntryInArr(BUILDING_WIDTHS);
+        let bh = getRandomEntryInArr(BUILDING_WIDTHS);
+        let bx = getRandomEntryInArr(xChunk);
+        let by = getRandomEntryInArr(yChunk);
+
+        const building = new Building(bx, by, bw, bh);
+        return building;
+    }
 
 	addMessage(pos) {
 		const that = this;
@@ -125,6 +188,8 @@ class GameRoom {
 	}
 
 	update() {
+        this.checkCollisions();
+
 		this.bullets.forEach(b => {
 			b.update();
 		});
@@ -133,7 +198,6 @@ class GameRoom {
 		})
 
 		this.updateClients();
-		this.checkCollisions();
 	}
 
 	checkCollisions() {
@@ -143,7 +207,17 @@ class GameRoom {
 			if (user.type !== PLAYER_DICTATOR) {
 				this.checkDeathCollisions(user);
 			}
-		});
+        });
+        
+        for (let b = 0; b < this.bullets.length; b++) {
+            let bul = this.bullets[b];
+            for (let bu = 0; bu < this.map.length; bu++) {
+                let build = this.map[bu];
+                if (hasOverlap(build.getHitbox(), bul.getHitbox())) {
+                    bul.remove();
+                }
+            }
+		}
 	}
 
 	checkMessageCollisions(u) {
@@ -275,7 +349,8 @@ class User {
 		let formattedPlayers = this.room.getUserInfo();
 		console.log("emitting " + Object.keys(this.room.users).length + " users to client");
 		this.socket.emit('set-game-info', {
-			players: formattedPlayers
+            players: formattedPlayers,
+            map: this.room.map
 		});
 	}
 

@@ -7,10 +7,6 @@ const CANVAS_HEIGHT = 600;
 
 const CURSOR_RADIUS = 10;
 
-const PIXELS_PER_UNIT = 50;
-const MAP_WIDTH = 1000;
-const MAP_HEIGHT = 1000;
-
 const KEY_CHECKER = {};
 
 /** To be swapped with server logic */
@@ -20,6 +16,7 @@ let FIRED_BULLETS = [];
 
 const EXTERNAL_PLAYERS = [];
 
+let map = [];
 
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
@@ -124,18 +121,60 @@ Player.prototype.getAdjustedSpeed = function(t) {
 Player.prototype.update = function(t) {
     // A or <-
     let adjustedSpeed = this.getAdjustedSpeed(t);
-    if (KEY_CHECKER[65]) {
+    if (KEY_CHECKER[65] && this.checkMoveLeft(adjustedSpeed)) {
         this.pos.x -= adjustedSpeed;
     }
-    if (KEY_CHECKER[87]) {
+    if (KEY_CHECKER[87] && this.checkMoveUp(adjustedSpeed)) {
         this.pos.y -= adjustedSpeed;
     }
-    if (KEY_CHECKER[68]) {
+    if (KEY_CHECKER[68] && this.checkMoveRight(adjustedSpeed)) {
         this.pos.x += adjustedSpeed;
     }
-    if (KEY_CHECKER[83]) {
+    if (KEY_CHECKER[83] && this.checkMoveDown(adjustedSpeed)) {
         this.pos.y += adjustedSpeed;
     }
+}
+
+Player.prototype.getRectCorner = function() {
+    return {
+        x: this.pos.x - this.size.w/2,
+        y: this.pos.y - this.size.h/2
+    }
+}
+
+Player.prototype.checkMove = function (hitbox) {
+    for (let i = 0; i < map.length; i++) {
+        let b = map[i];
+        if (hasOverlap(hitbox, generateHitbox(b.pos, b.size))) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+Player.prototype.checkMoveLeft = function(adjSpeed) {
+    let topCorner = this.getRectCorner();
+    let adjustedHitbox = { x: topCorner.x - adjSpeed, y: topCorner.y, w: this.size.w, h: this.size.h };
+    return this.checkMove(adjustedHitbox);
+}
+
+Player.prototype.checkMoveDown = function(adjSpeed) {
+    let topCorner = this.getRectCorner();
+    let adjustedHitbox = { x: topCorner.x, y: topCorner.y + adjSpeed, w: this.size.w, h: this.size.h };
+    return this.checkMove(adjustedHitbox);
+}
+
+Player.prototype.checkMoveUp = function(adjSpeed) {
+    let topCorner = this.getRectCorner();
+    let adjustedHitbox = { x: topCorner.x, y: topCorner.y - adjSpeed, w: this.size.w, h: this.size.h };
+    return this.checkMove(adjustedHitbox);
+}
+
+Player.prototype.checkMoveRight = function(adjSpeed) {
+    let topCorner = this.getRectCorner();
+    let adjustedHitbox = { x: topCorner.x + adjSpeed, y: topCorner.y, w: this.size.w, h: this.size.h };
+    return this.checkMove(adjustedHitbox);
 }
 
 Player.prototype.draw = function() {
@@ -451,16 +490,22 @@ function drawBackground() {
                 PIXELS_PER_UNIT
             );
             ctx.strokeStyle = '#111';
-            ctx.fillStyle = '#555';
+            ctx.fillStyle = '#ccc';
             ctx.fill();
             ctx.stroke();
         }
     }
+    drawBuildings();
     drawMessages();
     drawArrows();
     drawBullets();
     drawOtherPlayers();
     ctx.restore();
+}
+function drawBuildings() {
+    map.forEach(b => {
+        Building.draw(b.pos, b.size);
+    });
 }
 function drawMessages() {
     for (let msg = 0; msg < DROPPED_MESSAGES.length; msg++) {
@@ -501,7 +546,6 @@ socket.on('set-id', function(data) {
 
 socket.on('set-game-info', function(data) {
     delete data.players[userID];
-
     const playerKeys = Object.keys(data.players);
     playerKeys.forEach(i => {
         let p = data.players[i];
@@ -509,6 +553,7 @@ socket.on('set-game-info', function(data) {
         const type = getClassFromType(p.type);
         EXTERNAL_PLAYERS[p.id] = new type(p.pos.x, p.pos.y, true);
     });
+    map = data.map;
 });
 
 socket.on('game-update', function(data) {
