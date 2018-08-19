@@ -60,7 +60,6 @@ class GameRoom {
 		// TEST DATA
 		this.addMessage({x: 500, y: 400});
 		this.addMessage({x: 600, y: 400});
-		this.addMessage({x: 300, y: 400});
 	}
 
 	addMessage(pos) {
@@ -72,8 +71,12 @@ class GameRoom {
 	}
 
 	deleteMessage(id) {
+		console.log('Destroying message with id: ' + id);
 		let msg = this.messages.filter((m) => m.id === id)[0];
-		msg.destroy();
+		if (msg) {
+			msg.destroy();
+		}
+		console.log(this.messages.length + " messages left");
 	}
 
 	addArrow(pos, rotation) {

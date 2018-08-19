@@ -1,1 +1,1 @@
-web: node index.js
+web: npm install -g gulp-cli && gulp compile && node index.js

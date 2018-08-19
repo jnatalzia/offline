@@ -320,13 +320,16 @@ Courier.prototype.addEventHandlers = function() {
 
 Courier.prototype.update = function(t) {
     this.super_.prototype.update.apply(this, arguments);
+    if (!KEY_CHECKER[32]) {
+        this.justPickedUp = false;
+    }
 }
 
 Courier.prototype.canPickUp = function(msg) {
-    console.log('PICKING UP MSG')
-    if (KEY_CHECKER[32]) {
+    if (!this.justPickedUp && KEY_CHECKER[32]) {
         console.log("The encoded message tells you: " + msg.coords);
         socket.emit('destroy-message', { id: msg.id });
+        this.justPickedUp = true;
     }
 }
 
@@ -341,9 +344,17 @@ function Dictator(x, y, isNotPlayer) {
 
 inherits(Dictator, Player);
 
+Dictator.prototype.update = function(t) {
+    this.super_.prototype.update.apply(this, arguments);
+    if (!KEY_CHECKER[32]) {
+        this.justPickedUp = false;
+    }
+}
+
 Dictator.prototype.canPickUp = function(msg) {
-    if (KEY_CHECKER[32]) {
+    if (!this.justPickedUp && KEY_CHECKER[32]) {
         socket.emit('destroy-message', { id: msg.id });
+        this.justPickedUp = true;
     }
 }
 
