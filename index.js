@@ -8,7 +8,7 @@ const parser = require('body-parser');
 const app = express();
 const server = require('http').Server(app);
 
-let origins = process.env.ENV === 'prd' ? 'https://offline-js13k-2018.herokuapp.com:' + (process.env.PORT) : 'http://localhost:3000';
+let origins = process.env.ENV === 'prd' ? 'https://offline-js13k-2018.herokuapp.com' : 'http://localhost:3000';
 
 const io = require('socket.io')(server, { origins: origins });
 const code = fs.readFileSync('./public/server.js', 'utf8');
