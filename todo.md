@@ -9,6 +9,8 @@ Msg Dropper:
 
 Messages:
 
+Internet:
+[]
 
 Rebel Courier:
 [] Read Messages

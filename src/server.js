@@ -159,6 +159,7 @@ class GameRoom {
 			let bul = this.bullets[b];
 			if (hasOverlap(getPlayerHitbox(u), bul.getHitbox())) {
 				u.socket.emit('shot', bul);
+				bul.remove();
 				break;
 			}
 		}
@@ -196,9 +197,7 @@ class GameRoom {
 		let type = this.selectPlayerType();
 		u.type = type;
 		console.log('User of type: ' + type + 'added.')
-		console.log(PLAYER_ROLE_IDX[type]);
 		this.takenRoles[PLAYER_ROLE_IDX[type]] = 1;
-		console.log(this.takenRoles);
 
 		u.socket.emit('set-type', {
 			type: type

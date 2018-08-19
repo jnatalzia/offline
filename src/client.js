@@ -108,7 +108,13 @@ function Player(x, y, isNotPlayer) {
 }
 
 Player.prototype.addEventHandlers = function() {
+    socket.on('shot', function(data) {
+        this.die();
+    }.bind(this));
+}
 
+Player.prototype.die = function() {
+    console.log('You died betch');
 }
 
 Player.prototype.getAdjustedSpeed = function(t) {
@@ -317,6 +323,7 @@ Courier.prototype.update = function(t) {
 }
 
 Courier.prototype.canPickUp = function(msg) {
+    console.log('PICKING UP MSG')
     if (KEY_CHECKER[32]) {
         console.log("The encoded message tells you: " + msg.coords);
         socket.emit('destroy-message', { id: msg.id });
@@ -336,13 +343,18 @@ inherits(Dictator, Player);
 
 Dictator.prototype.canPickUp = function(msg) {
     if (KEY_CHECKER[32]) {
-        msg.destroy();
+        socket.emit('destroy-message', { id: msg.id });
     }
 }
 
 Dictator.prototype.addEventHandlers = function() {
     this.super_.prototype.addEventHandlers.apply(this, arguments);
+
     canvas.addEventListener('click', this.fireBullet.bind(this));
+
+    socket.on('message-collision', (msg) => {
+        this.canPickUp(msg);
+    });
 }
 
 Dictator.prototype.fireBullet = function() {

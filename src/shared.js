@@ -110,23 +110,14 @@ Bullet.draw = function (pos, rad) {
     ctx.arc(pos.x, pos.y, rad, 0, 2 * Math.PI);
     ctx.fillStyle = 'red';
     ctx.fill();
-    ctx.strokeStyle = 'blue';
-    let r2 = rad * 2;
-    let hitbox = {
-        x: ( r2 ) - r2 - 2,
-        y: 2,
-        w: (r2) - 4,
-        h: (r2) - 4
-    };
-    ctx.strokeRect(hitbox.x, hitbox.y, hitbox.w, hitbox.h);
     ctx.restore();
 }
 
 Bullet.prototype.getHitbox = function() {
     let r2 = this.rad * 2;
     return {
-        x: ( r2 ) - r2 - 2,
-        y: 2,
+        x: this.pos.x - this.rad + 2,
+        y: this.pos.y - this.rad + 2,
         w: (r2) - 4,
         h: (r2) - 4
     }
