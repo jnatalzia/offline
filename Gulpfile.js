@@ -5,7 +5,7 @@ const template = require('gulp-template');
 
 function getTemplateVars() {
     return {
-        host: process.env.ENV === 'prd' ? `https://offline-js13k-2018.herokuapp.com` : 'http://localhost:3000'
+        host: process.env.ENV === 'prd' ? `https://offline-js13k-2018.herokuapp.com:${process.env.PORT}` : 'http://localhost:3000'
     };
 }
 
