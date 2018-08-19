@@ -55,6 +55,7 @@ function getClassFromType(type) {
 
 /** Game State */
 let mousePos = { x: 0, y: 0 };
+let player;
 
 function addMessage(pos) {
     // DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
@@ -110,7 +111,7 @@ Player.prototype.addEventHandlers = function() {
 
 }
 
-Player.prototype.getAdjustedSpeed = function() {
+Player.prototype.getAdjustedSpeed = function(t) {
     return (KEY_CHECKER[16] ? this.speed * 1.6 : this.speed) * (t/100);
 }
 
@@ -186,6 +187,10 @@ MsgDropper.prototype.update = function(t) {
 
     this.handleMessageDropping(t);
     this.handleArrowDropping(t);
+}
+
+MsgDropper.prototype.addEventHandlers = function () {
+    this.super_.prototype.addEventHandlers.apply(this, arguments);
 }
 
 MsgDropper.prototype.handleArrowDropping = function(t) {
@@ -300,6 +305,8 @@ function Courier(x, y) {
 inherits(Courier, Player);
 
 Courier.prototype.addEventHandlers = function() {
+    this.super_.prototype.addEventHandlers.apply(this, arguments);
+
     socket.on('message-collision', (msg) => {
         this.canPickUp(msg);
     });
@@ -334,6 +341,7 @@ Dictator.prototype.canPickUp = function(msg) {
 }
 
 Dictator.prototype.addEventHandlers = function() {
+    this.super_.prototype.addEventHandlers.apply(this, arguments);
     canvas.addEventListener('click', this.fireBullet.bind(this));
 }
 
@@ -343,14 +351,12 @@ Dictator.prototype.fireBullet = function() {
 }
 
 /** Game State */
-// let player = new MsgDropper(500, 500);
-let player = new Courier(500, 500);
-// let player = new Dictator(500, 500);
 let globalTime = 0;
 let userID;
 
 function updateGameStateFromServer(data) {
     let players = data.players;
+    // debugger;
     delete players[userID];
     let playerKeys = Object.keys(players);
     playerKeys.forEach(pKey => {
@@ -370,7 +376,6 @@ function updateGameStateFromServer(data) {
 /** Bootup */
 function loadMap() {
     let map = [];
-    update();
 }
 /** Main Update Loop */
 function update(time) {
@@ -461,6 +466,7 @@ socket.on('set-id', function(data) {
     console.log("SET ID");
     userID = data.id;
 });
+
 socket.on('set-game-info', function(data) {
     delete data.players[userID];
 
@@ -478,7 +484,6 @@ socket.on('game-update', function(data) {
 });
 
 socket.on('player-added', function(data) {
-    console.log('Adding player with id: ' + data.id);
     const type = getClassFromType(data.type);
     EXTERNAL_PLAYERS[data.id] = new type(data.pos.x, data.pos.y, true);
 });
@@ -494,12 +499,18 @@ function updateServer() {
     });
 }
 
-socket.emit('ready', {
-    type: player.type,
-    pos: player.pos
-});
-
-setInterval(updateServer, TICK_TIME);
-
 /** Start game */
 loadMap();
+
+socket.emit('ready', {
+    pos: {x: 500, y: 500}
+});
+
+socket.on('set-type', function(d) {
+    console.log('SETTING TYPE', d);
+    const type = getClassFromType(d.type);
+    player = new type(500, 500);
+
+    update();
+    setInterval(updateServer, TICK_TIME);
+});

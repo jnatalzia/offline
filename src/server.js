@@ -133,10 +133,12 @@ class GameRoom {
 		Object.keys(this.users).forEach(k => {
 			let user = this.users[k];
 			this.checkMessageCollisions(user);
+			this.checkDeathCollisions(user);
 		});
 	}
 
 	checkMessageCollisions(u) {
+		/** refactor me, sends a message EVERYTIME there is an overlap (1 per tick) */
 		for (let m = 0; m < this.messages.length; m++) {
 			let msg = this.messages[m];
 			if (hasOverlap(getPlayerHitbox(u), msg.getHitbox())) {
@@ -146,13 +148,28 @@ class GameRoom {
 		}
 	}
 
+	checkDeathCollisions(u) {
+		for (let b = 0; b < this.bullets.length; b++) {
+			let bul = this.bullets[b];
+			if (hasOverlap(getPlayerHitbox(u), bul.getHitbox())) {
+				u.socket.emit('shot', bul);
+				break;
+			}
+		}
+	}
+
 	getUserInfo() {
 		const userKeys = Object.keys(this.users);
 		return userKeys.reduce((acc, currVal) => {
+			let u = this.users[currVal];
+			if (!u.ready) {
+				return acc;
+			}
+
 			acc[currVal] = {
-				pos: this.users[currVal].pos,
-				type: this.users[currVal].type,
-				id: this.users[currVal].id
+				pos: u.pos,
+				type: u.type,
+				id: u.id
 			};
 			return acc;
 		}, {});
@@ -170,20 +187,28 @@ class GameRoom {
 	addUser(u) {
 		console.log('Adding user {' + u.id + '} to room: ' + this.id);
 		u.room = this;
-
-		Object.keys(this.users).forEach(uid => {
-			this.users[uid].socket.emit('player-added', { id: u.id, type: u.type, pos: u.pos });
+		let type = this.selectPlayerType();
+		console.log('USER OF TYPE: ' + type);
+		u.type = type;
+		u.socket.emit('set-type', {
+			type: type
 		});
-
+		Object.keys(this.users).forEach(uid => {
+			this.users[uid].socket.emit('player-added', { id: u.id, type: type, pos: u.pos });
+		});
 		this.users[u.id] = u;
 	}
 
+	numUsers() {
+		return Object.keys(this.users).length;
+	}
+
 	roomHasSpace() {
-		return Object.keys(this.users).length < 3;
+		return this.numUsers() < 3;
 	}
 
 	isEmpty() {
-		return Object.keys(this.users).length === 0;
+		return this.numUsers() === 0;
 	}
 
 	removeUser(u) {
@@ -193,7 +218,7 @@ class GameRoom {
 			console.log('Sending player removed to id: ' + uid);
 			this.users[uid].socket.emit('player-removed', { id: u.id });
 		});
-		console.log('Deleted user from room: ' + this.id + ', key count: ' + Object.keys(this.users).length);
+		console.log('Deleted user from room: ' + this.id + ', key count: ' + this.numUsers());
 
 		if (this.isEmpty()) {
 			this.remove();
@@ -204,6 +229,19 @@ class GameRoom {
 
 	remove() {
 		delete ROOMS[this.id];
+	}
+
+	selectPlayerType() {
+		switch(this.numUsers()) {
+			case 0:
+				return PLAYER_MESSAGE_DROPPER;
+			case 1:
+				return PLAYER_COURIER;
+			case 2:
+				return PLAYER_DICTATOR;
+			default:
+				return 'UNKNOWN';
+		}
 	}
 }
 
@@ -220,8 +258,10 @@ class User {
 		this.socket = socket;
 		this.room = null;
 		this.pos = {x: -500, y: -500};
+		this.type = type;
 		this.setupSocketHandlers();
 		this.socket.emit('set-id', {id: this.id});
+		findRoom(this);
 	}
 
 	emitOtherPlayers() {
@@ -238,10 +278,9 @@ class User {
 			this.pos = data.playerPos;
 		});
 		this.socket.on('ready', (data) => {
-			this.type = data.type;
 			this.pos = data.pos;
-			findRoom(this);
 			this.emitOtherPlayers();
+			this.ready = true;
 		});
 		this.socket.on('drop-arrow', function(data) {
 			this.room.addArrow(data.pos, data.rotation);
