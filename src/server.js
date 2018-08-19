@@ -59,6 +59,7 @@ class GameRoom {
 		this.messages = [];
 		// TEST DATA
 		this.addMessage({x: 500, y: 400});
+		this.addMessage({x: 600, y: 400});
 	}
 
 	addMessage(pos) {
@@ -71,12 +72,11 @@ class GameRoom {
 
 	deleteMessage(id) {
 		console.log('Destroying message with id: ' + id);
-		console.log('Current messages');
-		console.log(this.messages);
 		let msg = this.messages.filter((m) => m.id === id)[0];
 		if (msg) {
 			msg.destroy();
 		}
+		console.log(this.messages.length + " messages left");
 	}
 
 	addArrow(pos, rotation) {
