@@ -163,7 +163,15 @@ Player.prototype.absoluteDraw = function() {
 }
 
 Player.prototype.drawUI = function() {
-
+    if (this.type) {
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText("PLAYER TYPE: " + this.type, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 20);
+        ctx.strokeText("PLAYER TYPE: " + this.type, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 20);
+    }
 }
 
 Player.prototype.getHitbox = function() {
@@ -178,7 +186,7 @@ Player.prototype.getHitbox = function() {
 function MsgDropper(x, y) {
     this.super_.apply(this, arguments);
 
-    this.type = PLAYER_MESSAGE_DROPPER
+    this.type = PLAYER_MESSAGE_DROPPER;
     this.canDropMessage = true;
     this.droppingMessage = false;
     this.msgDropState = {
@@ -292,6 +300,8 @@ MsgDropper.prototype.dropArrow = function(rotation) {
 }
 
 MsgDropper.prototype.drawUI = function() {
+    this.super_.prototype.drawUI.apply(this, arguments);
+
     ctx.save();
     ctx.strokeStyle = '#00348F';
     ctx.fillStyle = '#00348F';
