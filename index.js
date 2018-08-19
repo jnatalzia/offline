@@ -7,13 +7,15 @@ const session = require('express-session');
 const parser = require('body-parser');
 const app = express();
 const server = require('http').Server(app);
-const io = require('socket.io')(server, { origins: 'https://offline-js13k-2018.herokuapp.com:' + (process.env.PORT || '3000') });
+
+let origins = process.env.ENV === 'prd' ? 'https://offline-js13k-2018.herokuapp.com:' + (process.env.PORT) : 'http://localhost:3000';
+
+const io = require('socket.io')(server, { origins: origins });
 const code = fs.readFileSync('./public/server.js', 'utf8');
 const shared = fs.readFileSync('./public/shared.js', 'utf8');
 const storage = require('./lib/storage');
 
 let packageSize = 0;
-
 
 function createSandbox() {
     const sandbox = {

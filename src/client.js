@@ -323,7 +323,6 @@ Courier.prototype.update = function(t) {
 }
 
 Courier.prototype.canPickUp = function(msg) {
-    console.log('PICKING UP MSG')
     if (KEY_CHECKER[32]) {
         console.log("The encoded message tells you: " + msg.coords);
         socket.emit('destroy-message', { id: msg.id });

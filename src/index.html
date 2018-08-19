@@ -14,10 +14,11 @@
 </head>
 <body>
     <canvas></canvas>
+    <!-- <script src="https://offline-js13k-2018.herokuapp.com:3000/socket.io/socket.io.js"></script> -->
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io('https://offline-js13k-2018.herokuapp.com:3000');
-        // const socket = io('http://localhost:3000');
+        // const socket = io('https://offline-js13k-2018.herokuapp.com:3000');
+        const socket = io('<%= host %>');
     </script>
     <script src="shared.js"></script>
     <script src="client.js"></script>

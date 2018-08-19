@@ -1,6 +1,15 @@
 var gulp = require('gulp');
 var gutil = require('gulp-util');
 const uglify = require('gulp-uglifyes');
+const template = require('gulp-template');
+
+function getTemplateVars() {
+    return {
+        host: process.env.ENV === 'prd' ? `https://offline-js13k-2018.herokuapp.com:${process.env.PORT}` : 'http://localhost:3000'
+    };
+}
+
+let templateVars = getTemplateVars();
 
 gulp.task('scripts', function() {
     gulp.src(['src/**/*.js'])
@@ -19,12 +28,13 @@ gulp.task('scripts-minify', function() {
 
 gulp.task('html', function() {
     gulp.src("src/*.html")
+        .pipe(template(templateVars))
         .pipe(gulp.dest('public/'))
 })
 
 gulp.task('html-minify', function() {
     gulp.src("src/*.html")
-        // .pipe(minify())
+        .pipe(template(templateVars))
         .pipe(gulp.dest('public/'))
 })
 
@@ -38,7 +48,7 @@ gulp.task('default', function() {
     gulp.watch('src/**/*.html', function(event) {
         gulp.run('html');
     })
-})
+});
 
 gulp.task('compile', function() {
     gulp.run('scripts-minify', 'html-minify')
