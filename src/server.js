@@ -72,8 +72,11 @@ class GameRoom {
 	}
 
 	deleteMessage(id) {
+		console.log('Destroying message with id: ' + m.id);
 		let msg = this.messages.filter((m) => m.id === id)[0];
-		msg.destroy();
+		if (msg) {
+			msg.destroy();
+		}
 	}
 
 	addArrow(pos, rotation) {
