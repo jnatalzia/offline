@@ -13,6 +13,7 @@ const KEY_CHECKER = {};
 let DROPPED_MESSAGES = [];
 let DROPPED_ARROWS = [];
 let FIRED_BULLETS = [];
+let ACTIVE_CIVILIANS = [];
 
 const EXTERNAL_PLAYERS = [];
 
@@ -442,6 +443,8 @@ function updateGameStateFromServer(data) {
     FIRED_BULLETS = data.bullets;
     /** Update Messages */
     DROPPED_MESSAGES = data.messages;
+    /** Update Civilians */
+    ACTIVE_CIVILIANS = data.civilians;
 }
 
 /** Bootup */
@@ -500,18 +503,21 @@ function drawBackground() {
     drawArrows();
     drawBullets();
     drawOtherPlayers();
+    drawCivilians();
     ctx.restore();
 }
-function drawBuildings() {
-    map.forEach(b => {
-        Building.draw(b.pos, b.size);
+
+function genericObjectDraw(arr, cls) {
+    arr.forEach(o => {
+        cls.draw(o.pos, o.size);
     });
 }
+
+function drawBuildings() {
+    genericObjectDraw(map, Building);
+}
 function drawMessages() {
-    for (let msg = 0; msg < DROPPED_MESSAGES.length; msg++) {
-        let drawData = DROPPED_MESSAGES[msg];
-        Message.draw(drawData.pos, drawData.size);
-    }
+    genericObjectDraw(DROPPED_MESSAGES, Message);
 }
 function drawArrows() {
     for (let arrow = 0; arrow < DROPPED_ARROWS.length; arrow++) {
@@ -521,8 +527,8 @@ function drawArrows() {
 }
 function drawBullets() {
     for (let bullet = 0; bullet < FIRED_BULLETS.length; bullet++) {
-        let drawData = FIRED_BULLETS[bullet];
-        Bullet.draw(drawData.pos, drawData.rad);
+            let drawData = FIRED_BULLETS[bullet];
+            Bullet.draw(drawData.pos, drawData.rad);
     }
 }
 function drawCursor() {
@@ -536,6 +542,10 @@ function drawOtherPlayers() {
     Object.keys(EXTERNAL_PLAYERS).forEach(p => {
         EXTERNAL_PLAYERS[p].absoluteDraw();
     });
+}
+
+function drawCivilians() {
+    genericObjectDraw(ACTIVE_CIVILIANS, Civilian);
 }
 
 /** Socket listeners */

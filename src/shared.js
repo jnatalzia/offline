@@ -17,7 +17,7 @@ const PLAYER_ROLE_IDX = {
 const TICK_TIME = 1000/60;
 const MAX_DROPPED_ARROWS = 6;
 const MAX_DROPPED_MESSAGES = 3;
-const PLAYER_WIDTH = 20;
+const PLAYER_WIDTH = 15;
 const PLAYER_HEIGHT = 15;
 
 const PIXELS_PER_UNIT = 50;
@@ -50,6 +50,17 @@ function hasOverlap(hb1, hb2) {
 
 function getPlayerHitbox(u) {
     return {x: u.pos.x - PLAYER_WIDTH / 2, y: u.pos.y - PLAYER_HEIGHT / 2, w: PLAYER_WIDTH, h: PLAYER_HEIGHT};
+}
+
+function getDist(pos1, pos2) {
+    return Math.sqrt(Math.pow(pos2.x - pos1.x, 2) + Math.pow(pos2.y - pos1.y, 2));
+}
+
+function genRemovalFromArray(arr) {
+    return function() {
+        let idx = arr.indexOf(this);
+        arr.splice(idx, 1);
+    }
 }
 
 /** Shared draw classes */
@@ -117,7 +128,7 @@ Bullet.prototype.update = function(t) {
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
 
-    let distFromStart = Math.sqrt(Math.pow(this.pos.x - this.origPos.x, 2) + Math.pow(this.pos.y - this.origPos.y, 2));
+    let distFromStart = getDist(this.pos, this.origPos);
     if (distFromStart > 500) {
         this.remove();
     }
@@ -185,5 +196,92 @@ Building.draw = function(pos, size) {
 }
 
 Building.prototype.getHitbox = function () {
+    return generateHitbox(this.pos, this.size);
+}
+
+/** AI */
+
+function Civilian(x, y, destX, destY, removeCB) {
+    this.pos = { x: x, y: y };
+    this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
+    this.dest = { x: destX, y: destY };
+    this.currentDest = { x: x, y: y };
+    this.vel = {x: 0, y: 0};
+    this.speed = 2;
+    this.remove = removeCB;
+}
+
+Civilian.prototype.update = function(obstacles) {
+    if (this.shouldUpdatePath()) {
+        this.determineDestination(obstacles);
+    }
+    this.pos.x += this.vel.x;
+    this.pos.y += this.vel.y;
+}
+
+Civilian.prototype.shouldUpdatePath = function() {
+    return getDist(this.pos, this.currentDest) < 2;
+}
+
+Civilian.prototype.isAtDest = function() {
+    return getDist(this.pos, this.dest) < this.size.w;
+}
+
+Civilian.prototype.determineDestination = function(obstacles) {
+    // check if main dest is met
+    if (this.isAtDest()) {
+        this.dest = {x: Math.floor(Math.random() * MAP_WIDTH), y: Math.floor(Math.random() * MAP_HEIGHT)};
+        return;
+    }
+
+    let options = [
+        {x: this.pos.x - GRID_INTERVAL, y: this.pos.y - GRID_INTERVAL }, //top left
+        {x: this.pos.x - GRID_INTERVAL, y: this.pos.y }, // left
+        {x: this.pos.x - GRID_INTERVAL, y: this.pos.y + GRID_INTERVAL }, //bottom left
+        {x: this.pos.x, y: this.pos.y - GRID_INTERVAL }, //top
+        {x: this.pos.x + GRID_INTERVAL, y: this.pos.y - GRID_INTERVAL }, //top right
+        {x: this.pos.x + GRID_INTERVAL, y: this.pos.y }, // right
+        {x: this.pos.x + GRID_INTERVAL, y: this.pos.y + GRID_INTERVAL }, //bottom right
+        {x: this.pos.x, y: this.pos.y + GRID_INTERVAL } //bottom
+    ];
+
+    let sortedOptions = [];
+
+    options.forEach(opt => {
+        let d = getDist(opt, this.dest);
+        opt.dist = d;
+    });
+    sortedOptions = options.sort((a, b) => {
+        return a.dist - b.dist;
+    });
+
+
+    for (let i = 0; i < sortedOptions.length; i++) {
+        let hasAnyOverlap = obstacles.some(o => {
+            return hasOverlap(generateHitbox(sortedOptions[i], this.size), o.getHitbox())
+        });
+
+        if (!hasAnyOverlap) {
+            this.currentDest = {x: sortedOptions[i].x, y: sortedOptions[i].y};
+            this.rotation = Math.atan2((this.currentDest.y - this.pos.y), (this.currentDest.x - this.pos.x));
+            this.vel.x = Math.cos(this.rotation) * this.speed;
+            this.vel.y = Math.sin(this.rotation) * this.speed;
+            return;
+        }
+    }
+}
+
+Civilian.draw = function(pos, size) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pos.x-size.w/2, pos.y-size.h/2, size.w, size.h);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#111';
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
+Civilian.prototype.getHitbox = function() {
     return generateHitbox(this.pos, this.size);
 }

@@ -79,11 +79,19 @@ class GameRoom {
 		this.bullets = [];
 		this.arrows = [];
 		this.activeArrows = 0;
-		this.messages = [];
-		// TEST DATA
-		this.addMessage({x: 500, y: 400});
-		this.addMessage({x: 600, y: 400});
-		this.map = this.generateMap();
+        this.messages = [];
+        this.map = this.generateMap();
+        this.civilians = [];
+        // TEST DATA
+        this.civilians.push(new Civilian(0, 0, MAP_WIDTH, MAP_HEIGHT, genRemovalFromArray(this.civilians)));
+        this.civilians.push(new Civilian(MAP_WIDTH, MAP_HEIGHT, 0, 0, genRemovalFromArray(this.civilians)));
+        for (let i = 0; i < 10; i++) {
+            let randX = getRandomEntryInArr(BUILD_X_OPTS);
+            let randDestX = getRandomEntryInArr(BUILD_X_OPTS);
+            let randY = getRandomEntryInArr(BUILD_Y_OPTS);
+            let randDestY = getRandomEntryInArr(BUILD_Y_OPTS);
+            this.civilians.push(new Civilian(randX, randY, randDestX, randDestY, genRemovalFromArray(this.civilians)));
+        }
 	}
 
 	generateMap() {
@@ -161,10 +169,7 @@ class GameRoom {
 
 	addBullet(pos, rotation) {
 		const that = this;
-		this.bullets.push(new Bullet(pos.x, pos.y, rotation, function() {
-			let idx = that.bullets.indexOf(this);
-			that.bullets.splice(idx, 1);
-		}));
+		this.bullets.push(new Bullet(pos.x, pos.y, rotation, genRemovalFromArray(that.bullets)));
 	}
 
 	setupUpdate() {
@@ -182,7 +187,8 @@ class GameRoom {
 				players: formattedUserData,
 				arrows: this.arrows,
 				bullets: this.bullets,
-				messages: this.messages
+                messages: this.messages,
+                civilians: this.civilians
 			});
 		});
 	}
@@ -195,7 +201,10 @@ class GameRoom {
 		});
 		this.arrows.forEach(a => {
 			a.update();
-		})
+        });
+        this.civilians.forEach(c => {
+			c.update(this.map);
+		});
 
 		this.updateClients();
 	}
@@ -211,11 +220,33 @@ class GameRoom {
         
         for (let b = 0; b < this.bullets.length; b++) {
             let bul = this.bullets[b];
+            let shouldBreak = false;
             for (let bu = 0; bu < this.map.length; bu++) {
                 let build = this.map[bu];
                 if (hasOverlap(build.getHitbox(), bul.getHitbox())) {
                     bul.remove();
+                    shouldBreak = true;
+                    break;
                 }
+            }
+
+            if (shouldBreak) {
+                break;
+            }
+            
+            for (let c = 0; c < this.civilians.length; c++) {
+                let civ = this.civilians[c];
+                console.log(civ.getHitbox());
+                if (hasOverlap(bul.getHitbox(), civ.getHitbox())) {
+                    console.log('bullet overlaps civ');
+                    civ.remove();
+                    bul.remove();
+                    shouldBreak = true;
+                    break;
+                }
+            }
+            if (shouldBreak) {
+                break;
             }
 		}
 	}
@@ -232,15 +263,21 @@ class GameRoom {
 	}
 
 	checkDeathCollisions(u) {
+        let playerHitbox = getPlayerHitbox(u);
 		for (let b = 0; b < this.bullets.length; b++) {
-			let bul = this.bullets[b];
-			if (hasOverlap(getPlayerHitbox(u), bul.getHitbox())) {
+            let bul = this.bullets[b];
+            let bHbox = bul.getHitbox();
+			if (hasOverlap(playerHitbox, bHbox)) {
 				u.socket.emit('shot', bul);
 				bul.remove();
 				break;
-			}
+            }
 		}
-	}
+    }
+    
+    civilianShot() {
+
+    }
 
 	getUserInfo() {
 		const userKeys = Object.keys(this.users);
