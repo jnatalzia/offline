@@ -259,7 +259,6 @@ Civilian.prototype.incrementWaitTime = function(t) {
 
 Civilian.prototype.updateWalk = function() {
     if (this.isAtDest()) {
-        this.pos = this.path[this.pathIdx];
         this.pathIdx++;
         let newDest = this.path[this.pathIdx];
 
@@ -268,6 +267,7 @@ Civilian.prototype.updateWalk = function() {
             this.vel.x = Math.cos(derivedRadianRotation) * this.speed;
             this.vel.y = Math.sin(derivedRadianRotation) * this.speed;
         } else {
+            this.pos = this.path[this.pathIdx - 1];
             this.path = [];
             this.chooseState();
             this.vel = {x: 0, y: 0};
@@ -320,6 +320,8 @@ Civilian.prototype.determineNewDest = function () {
             let destHB = generateHitbox({x: randDestX, y: randDestY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT})
             return hasOverlap(hb, destHB);
         });
+
+        bOverlap = bOverlap || getDist(this.pos, {x: randDestX, y: randDestY}) < 30;
     }
 
     return {x: randDestX, y: randDestY};

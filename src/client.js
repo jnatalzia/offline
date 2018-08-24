@@ -98,7 +98,7 @@ function Extendable() {}
 function Player(x, y, isNotPlayer) {
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
-    this.speed = 12;
+    this.speed = 2;
     this.isPlayer = !isNotPlayer;
     if (this.isPlayer) {
         this.addEventHandlers();
@@ -116,24 +116,44 @@ Player.prototype.die = function() {
 }
 
 Player.prototype.getAdjustedSpeed = function(t) {
-    return (KEY_CHECKER[16] ? this.speed * 1.6 : this.speed) * (t/100);
+    return (KEY_CHECKER[16] ? this.speed * 1.6 : this.speed) * (16/t);
 }
 
 Player.prototype.update = function(t) {
     // A or <-
     let adjustedSpeed = this.getAdjustedSpeed(t);
+    let n, s, e, w;
     if (KEY_CHECKER[65] && this.checkMoveLeft(adjustedSpeed)) {
-        this.pos.x -= adjustedSpeed;
+        w = true;
     }
     if (KEY_CHECKER[87] && this.checkMoveUp(adjustedSpeed)) {
-        this.pos.y -= adjustedSpeed;
+        n = true;
     }
     if (KEY_CHECKER[68] && this.checkMoveRight(adjustedSpeed)) {
-        this.pos.x += adjustedSpeed;
+        e = true;
     }
     if (KEY_CHECKER[83] && this.checkMoveDown(adjustedSpeed)) {
-        this.pos.y += adjustedSpeed;
+        s = true;
     }
+
+    let vel = {x: 0, y: 0};
+    if (n || s || e || w) {
+        let rotation = 1.5; // n
+        if (n && w) rotation = 1.25
+        else if (n && e) rotation = 1.75
+        else if (s && w) rotation = .75
+        else if (s && e) rotation = .25
+        else if (s) rotation = .5
+        else if (w) rotation = 1
+        else if (e) rotation = 0;
+
+        rotation *= Math.PI;
+        vel.x = Math.cos(rotation) * adjustedSpeed;
+        vel.y = Math.sin(rotation) * adjustedSpeed;
+    }
+
+    this.pos.x += vel.x;
+    this.pos.y += vel.y;
 }
 
 Player.prototype.getRectCorner = function() {
