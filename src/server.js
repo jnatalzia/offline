@@ -81,7 +81,8 @@ class GameRoom {
 		this.activeArrows = 0;
         this.messages = [];
         this.map = this.generateMap();
-        this.civilians = [];
+		this.civilians = [];
+		this.prevTime = Date.now();
         // TEST DATA
         // this.civilians.push(new Civilian(0, 0, MAP_WIDTH, MAP_HEIGHT, genRemovalFromArray(this.civilians)));
         // this.civilians.push(new Civilian(MAP_WIDTH, MAP_HEIGHT, 0, 0, genRemovalFromArray(this.civilians)));
@@ -94,23 +95,20 @@ class GameRoom {
 
 	genCivilian() {
 		let bOverlap = true;
-		let randX, randY, randDestX, randDestY;
+		let randX, randY;
 		while (bOverlap) {
 			randX = getRandomEntryInArr(BUILD_X_OPTS);
-			randDestX = getRandomEntryInArr(BUILD_X_OPTS);
 			randY = getRandomEntryInArr(BUILD_Y_OPTS);
-			randDestY = getRandomEntryInArr(BUILD_Y_OPTS);
 
 			bOverlap = this.map.some(b => {
 				let hb = b.getHitbox();
-				let destHB = generateHitbox({x: randX, y: randY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
-				let civHB = generateHitbox({x: randDestX, y: randDestY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT})
-				return hasOverlap(hb, destHB) || hasOverlap(hb, civHB);
+				let civHB = generateHitbox({x: randX, y: randY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
+				return hasOverlap(hb, civHB);
 			});
 		}
 
 
-		return new Civilian(randX, randY, randDestX, randDestY, genRemovalFromArray(this.civilians));
+		return new Civilian(randX, randY, this.map, genRemovalFromArray(this.civilians));
 	}
 
 	generateMap() {
@@ -214,6 +212,8 @@ class GameRoom {
 	}
 
 	update() {
+		let currTime = Date.now();
+		let timeDiff = currTime - this.prevTime;
         this.checkCollisions();
 
 		this.bullets.forEach(b => {
@@ -223,10 +223,11 @@ class GameRoom {
 			a.update();
         });
         this.civilians.forEach(c => {
-			c.update(this.map);
+			c.update(timeDiff);
 		});
 
 		this.updateClients();
+		this.prevTime = currTime;
 	}
 
 	checkCollisions() {

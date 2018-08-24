@@ -221,37 +221,45 @@ const CIV_STATES = {
     STATIC: 2
 };
 
-function Civilian(x, y, destX, destY, removeCB) {
+function Civilian(x, y, map, removeCB) {
     this.id = genId();
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
-    this.dest = { x: destX, y: destY };
     this.currentPath = [];
     this.vel = {x: 0, y: 0};
     this.speed = 2;
     this.remove = removeCB;
     this.path = [];
     this.pathIdx = 0;
-    this.state = CIV_STATES.WALKING;
+    this.timeWaited = 0;
+    this.obstacles = map;
+    this.chooseState();
+
 }
 
-Civilian.prototype.update = function(obstacles) {
+Civilian.prototype.update = function(t) {
     switch (this.state) {
         case CIV_STATES.WALKING:
-            this.updateWalk(obstacles);
+            this.updateWalk();
+            break;
+        case CIV_STATES.STATIC:
+            this.incrementWaitTime(t);
             break;
         default:
             break;
     }
 }
 
-Civilian.prototype.updateWalk = function(obstacles) {
-    if (this.shouldUpdatePath()) {
-        this.path = this.determineDestination(obstacles);
-        this.pathIdx = 0;
+Civilian.prototype.incrementWaitTime = function(t) {
+    this.timeWaited += t;
+    if (this.timeWaited > this.maxWaitTime) {
+        this.chooseState();
     }
+}
 
-    if (this.path.length && this.isAtDest()) {
+Civilian.prototype.updateWalk = function() {
+    if (this.isAtDest()) {
+        this.pos = this.path[this.pathIdx];
         this.pathIdx++;
         let newDest = this.path[this.pathIdx];
 
@@ -271,7 +279,18 @@ Civilian.prototype.updateWalk = function(obstacles) {
 }
 
 Civilian.prototype.chooseState = function() {
-    this.state = CIV_STATES.STATIC;
+    let randState = Math.random();
+
+    if (randState < .25) {
+        this.timeWaited = 0;
+        this.maxWaitTime = 7000 + Math.floor(Math.random() * 6000);
+        this.state = CIV_STATES.STATIC;
+    } else if (randState >= .25) {
+        this.dest = this.determineNewDest();
+        this.path = this.determinePath();
+        this.pathIdx = 0;
+        this.state = CIV_STATES.WALKING;
+    }
 }
 
 Civilian.prototype.shouldUpdatePath = function() {
@@ -289,7 +308,24 @@ Civilian.prototype.heuristic = function(end, node) {
     return 1 * (dx + dy) + (1 - 2 * 1) * min(dx, dy)
 }
 
-Civilian.prototype.determineDestination = function(obstacles) {
+Civilian.prototype.determineNewDest = function () {
+    let bOverlap = true;
+    let randDestX, randDestY;
+    while (bOverlap) {
+        randDestY = getRandomEntryInArr(BUILD_Y_OPTS);
+        randDestX = getRandomEntryInArr(BUILD_X_OPTS);
+
+        bOverlap = this.obstacles.some(b => {
+            let hb = b.getHitbox();
+            let destHB = generateHitbox({x: randDestX, y: randDestY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT})
+            return hasOverlap(hb, destHB);
+        });
+    }
+
+    return {x: randDestX, y: randDestY};
+}
+
+Civilian.prototype.determinePath = function() {
     var pathStart = this.pos;
     var pathEnd = this.dest;
 	// the world data are integers:
@@ -350,7 +386,7 @@ Civilian.prototype.determineDestination = function(obstacles) {
         else // not the destination
         {
             // find which nearby nodes are walkable
-            myNeighbours = Neighbours(myNode.x, myNode.y, obstacles);
+            myNeighbours = Neighbours(myNode.x, myNode.y, this.obstacles);
             // test each one that hasn't been tried already
             for(i = 0, j = myNeighbours.length; i < j; i++)
             {
