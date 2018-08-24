@@ -15,13 +15,13 @@ let MAX_BUILDING_WIDTH = 150;
 
 let BUILD_X_OPTS = [];
 let adjustedWidth = MAP_WIDTH - MAX_BUILDING_WIDTH / 2;
-for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedWidth; i+= GRID_INTERVAL) {
-    BUILD_X_OPTS.push(i + GRID_INTERVAL);
+for (let i = aStarGridInterval; i < adjustedWidth; i+= aStarGridInterval) {
+    BUILD_X_OPTS.push(i + aStarGridInterval);
 }
 let adjustedHeight = MAP_HEIGHT - MAX_BUILDING_WIDTH / 2;
 let BUILD_Y_OPTS = [];
-for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedHeight; i+= GRID_INTERVAL) {
-    BUILD_Y_OPTS.push(i + GRID_INTERVAL);
+for (let i = aStarGridInterval; i < adjustedHeight; i+= aStarGridInterval) {
+    BUILD_Y_OPTS.push(i + aStarGridInterval);
 }
 
 const X_CHUNKS = 3;
@@ -31,7 +31,7 @@ const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
 const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
 
 const NUM_BUILDINGS = X_CHUNKS * Y_CHUNKS;
-        
+
 /**
  * Remove user session
  * @param {User} user
@@ -83,15 +83,34 @@ class GameRoom {
         this.map = this.generateMap();
         this.civilians = [];
         // TEST DATA
-        this.civilians.push(new Civilian(0, 0, MAP_WIDTH, MAP_HEIGHT, genRemovalFromArray(this.civilians)));
-        this.civilians.push(new Civilian(MAP_WIDTH, MAP_HEIGHT, 0, 0, genRemovalFromArray(this.civilians)));
+        // this.civilians.push(new Civilian(0, 0, MAP_WIDTH, MAP_HEIGHT, genRemovalFromArray(this.civilians)));
+        // this.civilians.push(new Civilian(MAP_WIDTH, MAP_HEIGHT, 0, 0, genRemovalFromArray(this.civilians)));
         for (let i = 0; i < 10; i++) {
-            let randX = getRandomEntryInArr(BUILD_X_OPTS);
-            let randDestX = getRandomEntryInArr(BUILD_X_OPTS);
-            let randY = getRandomEntryInArr(BUILD_Y_OPTS);
-            let randDestY = getRandomEntryInArr(BUILD_Y_OPTS);
-            this.civilians.push(new Civilian(randX, randY, randDestX, randDestY, genRemovalFromArray(this.civilians)));
+			let civ = this.genCivilian();
+
+            this.civilians.push(civ);
         }
+	}
+
+	genCivilian() {
+		let bOverlap = true;
+		let randX, randY, randDestX, randDestY;
+		while (bOverlap) {
+			randX = getRandomEntryInArr(BUILD_X_OPTS);
+			randDestX = getRandomEntryInArr(BUILD_X_OPTS);
+			randY = getRandomEntryInArr(BUILD_Y_OPTS);
+			randDestY = getRandomEntryInArr(BUILD_Y_OPTS);
+
+			bOverlap = this.map.some(b => {
+				let hb = b.getHitbox();
+				let destHB = generateHitbox({x: randX, y: randY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
+				let civHB = generateHitbox({x: randDestX, y: randDestY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT})
+				return hasOverlap(hb, destHB) || hasOverlap(hb, civHB);
+			});
+		}
+
+
+		return new Civilian(randX, randY, randDestX, randDestY, genRemovalFromArray(this.civilians));
 	}
 
 	generateMap() {
@@ -116,7 +135,7 @@ class GameRoom {
             }
         }
     }
-    
+
     generateBuilding(idx) {
         let xAdjustedIndex = idx % X_CHUNKS;
         let yAdjustedIndex = Math.floor(idx / X_CHUNKS);
@@ -174,6 +193,7 @@ class GameRoom {
 
 	setupUpdate() {
 		setInterval(this.update.bind(this), TICK_TIME)
+		// setTimeout(this.update.bind(this), TICK_TIME);
 	}
 
 	updateClients() {
@@ -217,7 +237,7 @@ class GameRoom {
 				this.checkDeathCollisions(user);
 			}
         });
-        
+
         for (let b = 0; b < this.bullets.length; b++) {
             let bul = this.bullets[b];
             let shouldBreak = false;
@@ -233,12 +253,10 @@ class GameRoom {
             if (shouldBreak) {
                 break;
             }
-            
+
             for (let c = 0; c < this.civilians.length; c++) {
                 let civ = this.civilians[c];
-                console.log(civ.getHitbox());
                 if (hasOverlap(bul.getHitbox(), civ.getHitbox())) {
-                    console.log('bullet overlaps civ');
                     civ.remove();
                     bul.remove();
                     shouldBreak = true;
@@ -274,7 +292,7 @@ class GameRoom {
             }
 		}
     }
-    
+
     civilianShot() {
 
     }

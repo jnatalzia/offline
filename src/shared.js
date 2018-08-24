@@ -22,6 +22,12 @@ const PLAYER_HEIGHT = 15;
 
 const PIXELS_PER_UNIT = 50;
 const GRID_INTERVAL = 5;
+const aStarGridInterval = GRID_INTERVAL * 2;
+
+const abs = Math.abs;
+const max = Math.max;
+const pow = Math.pow;
+const sqrt = Math.sqrt;
 
 /** Utils */
 function genId() {
@@ -46,6 +52,15 @@ function hasOverlap(hb1, hb2) {
         hb1.x > hb2.x + hb2.w ||
         hb1.y + hb1.h < hb2.y ||
         hb1.y > hb2.y + hb2.h)
+}
+
+function isInBounds(pos, size) {
+    let hb = getHitbox(pos, size);
+    return hb.x > 0 && hb.x + hb.w < MAP_WIDTH && hb,y > 0 && hb.y + hb.h < MAP_HEIGHT;
+}
+
+function getNodeKey(node) {
+    return `n-${node.x}-${node.y}`
 }
 
 function getPlayerHitbox(u) {
@@ -201,74 +216,162 @@ Building.prototype.getHitbox = function () {
 
 /** AI */
 
+const CIV_STATES = {
+    WALKING: 1,
+    STATIC: 2
+};
+
 function Civilian(x, y, destX, destY, removeCB) {
+    this.id = genId();
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
     this.dest = { x: destX, y: destY };
-    this.currentDest = { x: x, y: y };
+    this.currentPath = [];
     this.vel = {x: 0, y: 0};
     this.speed = 2;
     this.remove = removeCB;
+    this.path = [];
+    this.pathIdx = 0;
+    this.state = CIV_STATES.WALKING;
 }
 
 Civilian.prototype.update = function(obstacles) {
-    if (this.shouldUpdatePath()) {
-        this.determineDestination(obstacles);
+    switch (this.state) {
+        case CIV_STATES.WALKING:
+            this.updateWalk(obstacles);
+            break;
+        default:
+            break;
     }
+}
+
+Civilian.prototype.updateWalk = function(obstacles) {
+    if (this.shouldUpdatePath()) {
+        this.path = this.determineDestination(obstacles);
+        this.pathIdx = 0;
+    }
+
+    if (this.path.length && this.isAtDest()) {
+        this.pathIdx++;
+        let newDest = this.path[this.pathIdx];
+
+        if (newDest) {
+            let derivedRadianRotation = Math.atan2((newDest.y - this.pos.y), (newDest.x - this.pos.x));
+            this.vel.x = Math.cos(derivedRadianRotation) * this.speed;
+            this.vel.y = Math.sin(derivedRadianRotation) * this.speed;
+        } else {
+            this.path = [];
+            this.chooseState();
+            this.vel = {x: 0, y: 0};
+        }
+    }
+
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
 }
 
+Civilian.prototype.chooseState = function() {
+    this.state = CIV_STATES.STATIC;
+}
+
 Civilian.prototype.shouldUpdatePath = function() {
-    return getDist(this.pos, this.currentDest) < 2;
+    // return getDist(this.pos, this.currentDest) < 2;
+    return this.path.length === 0;
 }
 
 Civilian.prototype.isAtDest = function() {
-    return getDist(this.pos, this.dest) < this.size.w;
+    return getDist(this.pos, this.path[this.pathIdx]) < 1;
+}
+
+Civilian.prototype.heuristic = function(end, node) {
+    dx = abs(end.x - node.x);
+    dy = abs(end.y - node.y);
+    return 1 * (dx + dy) + (1 - 2 * 1) * min(dx, dy)
 }
 
 Civilian.prototype.determineDestination = function(obstacles) {
-    // check if main dest is met
-    if (this.isAtDest()) {
-        this.dest = {x: Math.floor(Math.random() * MAP_WIDTH), y: Math.floor(Math.random() * MAP_HEIGHT)};
-        return;
-    }
-
-    let options = [
-        {x: this.pos.x - GRID_INTERVAL, y: this.pos.y - GRID_INTERVAL }, //top left
-        {x: this.pos.x - GRID_INTERVAL, y: this.pos.y }, // left
-        {x: this.pos.x - GRID_INTERVAL, y: this.pos.y + GRID_INTERVAL }, //bottom left
-        {x: this.pos.x, y: this.pos.y - GRID_INTERVAL }, //top
-        {x: this.pos.x + GRID_INTERVAL, y: this.pos.y - GRID_INTERVAL }, //top right
-        {x: this.pos.x + GRID_INTERVAL, y: this.pos.y }, // right
-        {x: this.pos.x + GRID_INTERVAL, y: this.pos.y + GRID_INTERVAL }, //bottom right
-        {x: this.pos.x, y: this.pos.y + GRID_INTERVAL } //bottom
-    ];
-
-    let sortedOptions = [];
-
-    options.forEach(opt => {
-        let d = getDist(opt, this.dest);
-        opt.dist = d;
-    });
-    sortedOptions = options.sort((a, b) => {
-        return a.dist - b.dist;
-    });
-
-
-    for (let i = 0; i < sortedOptions.length; i++) {
-        let hasAnyOverlap = obstacles.some(o => {
-            return hasOverlap(generateHitbox(sortedOptions[i], this.size), o.getHitbox())
-        });
-
-        if (!hasAnyOverlap) {
-            this.currentDest = {x: sortedOptions[i].x, y: sortedOptions[i].y};
-            this.rotation = Math.atan2((this.currentDest.y - this.pos.y), (this.currentDest.x - this.pos.x));
-            this.vel.x = Math.cos(this.rotation) * this.speed;
-            this.vel.y = Math.sin(this.rotation) * this.speed;
-            return;
+    var pathStart = this.pos;
+    var pathEnd = this.dest;
+	// the world data are integers:
+	// anything higher than this number is considered blocked
+	// this is handy is you use numbered sprites, more than one
+	// of which is walkable road, grass, mud, etc
+	var maxWalkableTileNum = 0;
+	// keep track of the world dimensions
+	// Note that this A-star implementation expects the world array to be square:
+	// it must have equal height and width. If your game world is rectangular,
+    var	mypathStart = Node(null, {x:pathStart.x, y:pathStart.y});
+    var mypathEnd = Node(null, {x:pathEnd.x, y:pathEnd.y});
+    // create an array that will contain all world cells
+    var AStar = new Array(worldSize);
+    // list of currently open Nodes
+    var Open = [mypathStart];
+    // list of closed Nodes
+    var Closed = [];
+    // list of the final output array
+    var result = [];
+    // reference to a Node (that is nearby)
+    var myNeighbours;
+    // reference to a Node (that we are considering now)
+    var myNode;
+    // reference to a Node (that starts a path in question)
+    var myPath;
+    // temp integer variables used in the calculations
+    var length, max, min, i, j;
+    // iterate through the open list until none are left
+    while(length = Open.length)
+    {
+        max = worldSize;
+        min = -1;
+        for(i = 0; i < length; i++)
+        {
+            if(Open[i].f < max)
+            {
+                max = Open[i].f;
+                min = i;
+            }
         }
-    }
+        // grab the next node and remove it from Open array
+        myNode = Open.splice(min, 1)[0];
+        // is it the destination node?
+        if(myNode.value === mypathEnd.value)
+        {
+            myPath = Closed[Closed.push(myNode) - 1];
+            do
+            {
+                result.push({x: myPath.x, y: myPath.y});
+            }
+            while (myPath = myPath.Parent);
+            // clear the working arrays
+            AStar = Closed = Open = [];
+            // we want to return start to finish
+            result.reverse();
+        }
+        else // not the destination
+        {
+            // find which nearby nodes are walkable
+            myNeighbours = Neighbours(myNode.x, myNode.y, obstacles);
+            // test each one that hasn't been tried already
+            for(i = 0, j = myNeighbours.length; i < j; i++)
+            {
+                myPath = Node(myNode, myNeighbours[i]);
+                if (!AStar[myPath.value])
+                {
+                    // estimated cost of this particular route so far
+                    myPath.g = myNode.g + distanceFunction(myNeighbours[i], myNode);
+                    // estimated cost of entire guessed route to the destination
+                    myPath.f = myPath.g + distanceFunction(myNeighbours[i], mypathEnd);
+                    // remember this new path for testing above
+                    Open.push(myPath);
+                    // mark this node in the world graph as visited
+                    AStar[myPath.value] = true;
+                }
+            }
+            // remember this route as having no more untested options
+            Closed.push(myNode);
+        }
+    } // keep iterating until until the Open list is empty
+    return result;
 }
 
 Civilian.draw = function(pos, size) {
@@ -284,4 +387,101 @@ Civilian.draw = function(pos, size) {
 
 Civilian.prototype.getHitbox = function() {
     return generateHitbox(this.pos, this.size);
+}
+
+/** Pathing */
+let GRID = [];
+
+for (let i = 0; i <= MAP_WIDTH; i += aStarGridInterval) {
+    GRID.push([]);
+    let idx = GRID.length - 1;
+    for (let k = 0; k <= MAP_HEIGHT; k += aStarGridInterval) {
+        GRID[idx].push({x: i, y: k});
+    }
+}
+
+// just fill the array with dummy values to pad the empty space.
+var worldWidth = GRID[0].length * aStarGridInterval;
+var worldHeight = GRID.length * aStarGridInterval;
+var worldSize =	worldWidth * worldHeight;
+
+function DiagonalDistance(Point, Goal)
+{	// diagonal movement - assumes diag dist is 1, same as cardinals
+    return max(abs(Point.x - Goal.x), abs(Point.y - Goal.y));
+}
+
+function Neighbours(x, y, buildings)
+{
+    var	N = y - aStarGridInterval,
+    S = y + aStarGridInterval,
+    E = x + aStarGridInterval,
+    W = x - aStarGridInterval,
+    myN = N > -aStarGridInterval && canWalkHere(x, N, buildings),
+    myS = S < worldHeight && canWalkHere(x, S, buildings),
+    myE = E < worldWidth && canWalkHere(E, y, buildings),
+    myW = W > -aStarGridInterval && canWalkHere(W, y, buildings),
+    result = [];
+
+    if(myN)
+    result.push({x:x, y:N});
+    if(myE)
+    result.push({x:E, y:y});
+    if(myS)
+    result.push({x:x, y:S});
+    if(myW)
+    result.push({x:W, y:y});
+    findNeighbours(myN, myS, myE, myW, N, S, E, W, result, buildings);
+    return result;
+}
+
+var distanceFunction = DiagonalDistance;
+var findNeighbours = DiagonalNeighbours;
+
+// returns every available North East, South East,
+// South West or North West cell - no squeezing through
+// "cracks" between two diagonals
+function DiagonalNeighbours(myN, myS, myE, myW, N, S, E, W, result, buildings)
+{
+    if(myN)
+    {
+        if(myE && canWalkHere(E, N, buildings))
+        result.push({x:E, y:N});
+        if(myW && canWalkHere(W, N, buildings))
+        result.push({x:W, y:N});
+    }
+    if(myS)
+    {
+        if(myE && canWalkHere(E, S, buildings))
+        result.push({x:E, y:S});
+        if(myW && canWalkHere(W, S, buildings))
+        result.push({x:W, y:S});
+    }
+}
+
+function canWalkHere(x, y, buildings) {
+    return !buildings.some(b => {
+        let hb = generateHitbox({x: x, y: y}, {w: aStarGridInterval, h: aStarGridInterval});
+        return hasOverlap(hb, b.getHitbox());
+    });
+}
+
+function Node(Parent, Point)
+{
+    var newNode = {
+        // pointer to another Node object
+        Parent:Parent,
+        // array index of this Node in the world linear array
+        value:Point.x + (Point.y * worldWidth),
+        // the location coordinates of this Node
+        x:Point.x,
+        y:Point.y,
+        // the distanceFunction cost to get
+        // TO this Node from the START
+        f:0,
+        // the distanceFunction cost to get
+        // from this Node to the GOAL
+        g:0
+    };
+
+    return newNode;
 }
