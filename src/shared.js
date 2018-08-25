@@ -153,6 +153,7 @@ function Bullet(x, y, rotation, removeCB) {
     this.vel.y = Math.sin(this.rotation) * this.speed;
     this.rad = 5;
     this.remove = removeCB;
+    this.size = {w: this.rad * 2, h: this.rad * 2};
 }
 
 Bullet.prototype.update = function(t) {
@@ -252,10 +253,11 @@ function Civilian(x, y, map, removeCB) {
     this.timeWaited = 0;
     this.obstacles = map;
     this.chooseState();
-
 }
 
-Civilian.prototype.update = function(t) {
+let civProto = Civilian.prototype;
+
+civProto.update = function(t) {
     switch (this.state) {
         case CIV_STATES.WALKING:
             this.updateWalk();
@@ -268,14 +270,14 @@ Civilian.prototype.update = function(t) {
     }
 }
 
-Civilian.prototype.incrementWaitTime = function(t) {
+civProto.incrementWaitTime = function(t) {
     this.timeWaited += t;
     if (this.timeWaited > this.maxWaitTime) {
         this.chooseState();
     }
 }
 
-Civilian.prototype.updateWalk = function() {
+civProto.updateWalk = function() {
     if (this.isAtDest()) {
         this.pathIdx++;
         let newDest = this.path[this.pathIdx];
@@ -296,7 +298,7 @@ Civilian.prototype.updateWalk = function() {
     this.pos.y += this.vel.y;
 }
 
-Civilian.prototype.chooseState = function() {
+civProto.chooseState = function() {
     let randState = Math.random();
 
     if (randState < .25) {
@@ -311,22 +313,22 @@ Civilian.prototype.chooseState = function() {
     }
 }
 
-Civilian.prototype.shouldUpdatePath = function() {
+civProto.shouldUpdatePath = function() {
     // return getDist(this.pos, this.currentDest) < 2;
     return this.path.length === 0;
 }
 
-Civilian.prototype.isAtDest = function() {
+civProto.isAtDest = function() {
     return getDist(this.pos, this.path[this.pathIdx]) < 1;
 }
 
-Civilian.prototype.heuristic = function(end, node) {
+civProto.heuristic = function(end, node) {
     dx = abs(end.x - node.x);
     dy = abs(end.y - node.y);
     return 1 * (dx + dy) + (1 - 2 * 1) * min(dx, dy)
 }
 
-Civilian.prototype.determineNewDest = function () {
+civProto.determineNewDest = function () {
     let bOverlap = true;
     let randDestX, randDestY;
     while (bOverlap) {
@@ -346,12 +348,12 @@ Civilian.prototype.determineNewDest = function () {
 }
 
 /** Astar methods */
-Civilian.prototype.DiagonalDistance = function(Point, Goal)
+civProto.DiagonalDistance = function(Point, Goal)
 {	// diagonal movement - assumes diag dist is 1, same as cardinals
     return max(abs(Point.x - Goal.x), abs(Point.y - Goal.y));
 }
 
-Civilian.prototype.Neighbours = function(x, y)
+civProto.Neighbours = function(x, y)
 {
     var	N = y - aStarGridInterval,
     S = y + aStarGridInterval,
@@ -382,7 +384,7 @@ Civilian.prototype.Neighbours = function(x, y)
 // returns every available North East, South East,
 // South West or North West cell - no squeezing through
 // "cracks" between two diagonals
-Civilian.prototype.DiagonalNeighbours = function(myN, myS, myE, myW, N, S, E, W, result)
+civProto.DiagonalNeighbours = function(myN, myS, myE, myW, N, S, E, W, result)
 {
     if(myN)
     {
@@ -400,7 +402,7 @@ Civilian.prototype.DiagonalNeighbours = function(myN, myS, myE, myW, N, S, E, W,
     }
 }
 
-Civilian.prototype.determinePath = function() {
+civProto.determinePath = function() {
     var pathStart = this.pos;
     var pathEnd = this.dest;
 	// the world data are integers:
@@ -496,11 +498,11 @@ Civilian.draw = function(pos, size) {
     ctx.restore();
 }
 
-Civilian.prototype.getHitbox = function() {
+civProto.getHitbox = function() {
     return generateHitbox(this.pos, this.size);
 }
 
-Civilian.prototype.canWalkHere = function(x, y) {
+civProto.canWalkHere = function(x, y) {
     return !this.obstacles.some(b => {
         let hb = generateHitbox({x: x, y: y}, {w: aStarGridInterval, h: aStarGridInterval});
         return hasOverlap(hb, b.getHitbox());

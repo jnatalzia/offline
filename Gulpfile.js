@@ -1,7 +1,11 @@
 var gulp = require('gulp');
 var gutil = require('gulp-util');
-const uglify = require('gulp-uglifyes');
 const template = require('gulp-template');
+var uglifyjs = require('uglify-es');
+var composer = require('gulp-uglify/composer');
+var pump = require('pump');
+
+var minify = composer(uglifyjs, console);
 
 function getTemplateVars() {
     return {
@@ -16,14 +20,18 @@ gulp.task('scripts', function() {
         .pipe(gulp.dest('public/'))
 })
 
-gulp.task('scripts-minify', function() {
-    gulp.src(['src/**/*.js'])
-        .pipe(uglify({
-            mangle: true,
-            ecma: 6
-         }))
-        .on('error', function (err) { gutil.log(gutil.colors.red('[Error]'), err.toString()); })
-        .pipe(gulp.dest('public/'))
+gulp.task('scripts-minify', function(cb) {
+    var options = {
+        mangle: true
+    };
+
+    pump([
+        gulp.src(['src/**/*.js']),
+        minify(options),
+        gulp.dest('public/')
+    ],
+    cb
+    );
 })
 
 gulp.task('html', function() {

@@ -105,21 +105,23 @@ function Player(x, y, isNotPlayer) {
     }
 }
 
-Player.prototype.addEventHandlers = function() {
+let pp = Player.prototype;
+
+pp.addEventHandlers = function() {
     socket.on('shot', function(data) {
         this.die();
     }.bind(this));
 }
 
-Player.prototype.die = function() {
+pp.die = function() {
     console.log('You died betch');
 }
 
-Player.prototype.getAdjustedSpeed = function(t) {
+pp.getAdjustedSpeed = function(t) {
     return (KEY_CHECKER[16] ? this.speed * 1.6 : this.speed) * (16/t);
 }
 
-Player.prototype.update = function(t) {
+pp.update = function(t) {
     // A or <-
     let adjustedSpeed = this.getAdjustedSpeed(t);
     let n, s, e, w;
@@ -156,14 +158,14 @@ Player.prototype.update = function(t) {
     this.pos.y += vel.y;
 }
 
-Player.prototype.getRectCorner = function() {
+pp.getRectCorner = function() {
     return {
         x: this.pos.x - this.size.w/2,
         y: this.pos.y - this.size.h/2
     }
 }
 
-Player.prototype.checkMove = function (hitbox) {
+pp.checkMove = function (hitbox) {
     for (let i = 0; i < map.length; i++) {
         let b = map[i];
         if (hasOverlap(hitbox, generateHitbox(b.pos, b.size))) {
@@ -174,31 +176,31 @@ Player.prototype.checkMove = function (hitbox) {
     return true;
 }
 
-Player.prototype.checkMoveLeft = function(adjSpeed) {
+pp.checkMoveLeft = function(adjSpeed) {
     let topCorner = this.getRectCorner();
     let adjustedHitbox = { x: topCorner.x - adjSpeed, y: topCorner.y, w: this.size.w, h: this.size.h };
     return this.checkMove(adjustedHitbox);
 }
 
-Player.prototype.checkMoveDown = function(adjSpeed) {
+pp.checkMoveDown = function(adjSpeed) {
     let topCorner = this.getRectCorner();
     let adjustedHitbox = { x: topCorner.x, y: topCorner.y + adjSpeed, w: this.size.w, h: this.size.h };
     return this.checkMove(adjustedHitbox);
 }
 
-Player.prototype.checkMoveUp = function(adjSpeed) {
+pp.checkMoveUp = function(adjSpeed) {
     let topCorner = this.getRectCorner();
     let adjustedHitbox = { x: topCorner.x, y: topCorner.y - adjSpeed, w: this.size.w, h: this.size.h };
     return this.checkMove(adjustedHitbox);
 }
 
-Player.prototype.checkMoveRight = function(adjSpeed) {
+pp.checkMoveRight = function(adjSpeed) {
     let topCorner = this.getRectCorner();
     let adjustedHitbox = { x: topCorner.x + adjSpeed, y: topCorner.y, w: this.size.w, h: this.size.h };
     return this.checkMove(adjustedHitbox);
 }
 
-Player.prototype.draw = function() {
+pp.draw = function() {
     ctx.save();
     ctx.translate(CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
     ctx.beginPath();
@@ -210,7 +212,7 @@ Player.prototype.draw = function() {
     ctx.restore();
 }
 
-Player.prototype.absoluteDraw = function() {
+pp.absoluteDraw = function() {
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
     ctx.beginPath();
@@ -222,7 +224,7 @@ Player.prototype.absoluteDraw = function() {
     ctx.restore();
 }
 
-Player.prototype.drawUI = function() {
+pp.drawUI = function() {
     if (this.type) {
         ctx.fillStyle = 'white';
         ctx.strokeStyle = '#000';
@@ -234,7 +236,7 @@ Player.prototype.drawUI = function() {
     }
 }
 
-Player.prototype.getHitbox = function() {
+pp.getHitbox = function() {
     return {
         x: this.pos.x - this.size.w/2,
         y: this.pos.y - this.size.h/2,
@@ -255,19 +257,19 @@ function MsgDropper(x, y) {
     this.timeToDrop = 1000;
 }
 inherits(MsgDropper, Player);
-
-MsgDropper.prototype.update = function(t) {
+let mp = MsgDropper.prototype;
+mp.update = function(t) {
     this.super_.prototype.update.call(this, t);
 
     this.handleMessageDropping(t);
     this.handleArrowDropping(t);
 }
 
-MsgDropper.prototype.addEventHandlers = function () {
+mp.addEventHandlers = function () {
     this.super_.prototype.addEventHandlers.apply(this, arguments);
 }
 
-MsgDropper.prototype.handleArrowDropping = function(t) {
+mp.handleArrowDropping = function(t) {
     let LEFT_PRESSED = KEY_CHECKER[37];
     let UP_PRESSED = KEY_CHECKER[38];
     let RIGHT_PRESSED = KEY_CHECKER[39];
@@ -313,7 +315,7 @@ MsgDropper.prototype.handleArrowDropping = function(t) {
     this.dropArrow(rotation);
 }
 
-MsgDropper.prototype.handleMessageDropping = function(t) {
+mp.handleMessageDropping = function(t) {
     if (this.freezeMsgDrop && !KEY_CHECKER[32]) {
         this.freezeMsgDrop = false;
     }
@@ -338,7 +340,7 @@ MsgDropper.prototype.handleMessageDropping = function(t) {
     }
 }
 
-MsgDropper.prototype.updateCanDrop = function() {
+mp.updateCanDrop = function() {
     const canDrop =
         DROPPED_MESSAGES.length < MAX_DROPPED_MESSAGES &&
         !Array.prototype.some.call([65,87,68,83], function(i) { return KEY_CHECKER[i] }) &&
@@ -347,19 +349,19 @@ MsgDropper.prototype.updateCanDrop = function() {
     this.canDropMessage = canDrop;
 }
 
-MsgDropper.prototype.dropMessage = function() {
+mp.dropMessage = function() {
     addMessage(this.pos);
     this.msgDropState.timeDropped = 0;
     this.droppingMessage = false;
     this.freezeMsgDrop = true;
 }
 
-MsgDropper.prototype.dropArrow = function(rotation) {
+mp.dropArrow = function(rotation) {
     addArrow(this.pos, rotation);
     this.freezeArrowDrop = true;
 }
 
-MsgDropper.prototype.drawUI = function() {
+mp.drawUI = function() {
     this.super_.prototype.drawUI.apply(this, arguments);
 
     ctx.save();
@@ -380,7 +382,9 @@ function Courier(x, y) {
 
 inherits(Courier, Player);
 
-Courier.prototype.addEventHandlers = function() {
+let cp = Courier.prototype;
+
+cp.addEventHandlers = function() {
     this.super_.prototype.addEventHandlers.apply(this, arguments);
 
     socket.on('message-collision', (msg) => {
@@ -388,14 +392,14 @@ Courier.prototype.addEventHandlers = function() {
     });
 }
 
-Courier.prototype.update = function(t) {
+cp.update = function(t) {
     this.super_.prototype.update.apply(this, arguments);
     if (!KEY_CHECKER[32]) {
         this.justPickedUp = false;
     }
 }
 
-Courier.prototype.canPickUp = function(msg) {
+cp.canPickUp = function(msg) {
     if (!this.justPickedUp && KEY_CHECKER[32]) {
         console.log("The encoded message tells you: " + msg.coords);
         socket.emit('destroy-message', { id: msg.id });
@@ -403,7 +407,7 @@ Courier.prototype.canPickUp = function(msg) {
     }
 }
 
-Courier.prototype.getAdjustedSpeed = function(t) {
+cp.getAdjustedSpeed = function(t) {
     return this.speed * (16/t);
 }
 
@@ -414,21 +418,23 @@ function Dictator(x, y, isNotPlayer) {
 
 inherits(Dictator, Player);
 
-Dictator.prototype.update = function(t) {
+let dp = Dictator.prototype;
+
+dp.update = function(t) {
     this.super_.prototype.update.apply(this, arguments);
     if (!KEY_CHECKER[32]) {
         this.justPickedUp = false;
     }
 }
 
-Dictator.prototype.canPickUp = function(msg) {
+dp.canPickUp = function(msg) {
     if (!this.justPickedUp && KEY_CHECKER[32]) {
         socket.emit('destroy-message', { id: msg.id });
         this.justPickedUp = true;
     }
 }
 
-Dictator.prototype.addEventHandlers = function() {
+dp.addEventHandlers = function() {
     this.super_.prototype.addEventHandlers.apply(this, arguments);
 
     canvas.addEventListener('click', this.fireBullet.bind(this));
@@ -438,7 +444,7 @@ Dictator.prototype.addEventHandlers = function() {
     });
 }
 
-Dictator.prototype.fireBullet = function() {
+dp.fireBullet = function() {
     let derivedRadianRotation = Math.atan2((mousePos.y - CANVAS_HEIGHT / 2), (mousePos.x - CANVAS_WIDTH / 2));
     addBullet(this.pos, derivedRadianRotation, this);
 }
@@ -500,30 +506,35 @@ function clearBoard() {
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 }
+
+function getNearObjects(arr) {
+    let viewHB = generateHitbox({x: player.pos.x, y: player.pos.y}, {w: MAP_WIDTH, h: MAP_HEIGHT});
+    return arr.filter(obj => {
+        let obhb = generateHitbox(obj.pos, obj.size);
+        return hasOverlap(viewHB, obhb);
+    });
+}
+
 function drawBackground() {
     ctx.save();
     ctx.translate(-player.pos.x + CANVAS_WIDTH/2,-player.pos.y + CANVAS_HEIGHT/2)
-    for (let w = 0; w < MAP_WIDTH; w += PIXELS_PER_UNIT) {
-        for (let h = 0; h < MAP_HEIGHT; h += PIXELS_PER_UNIT) {
-            ctx.beginPath();
-            ctx.rect(
-                w,
-                h,
-                PIXELS_PER_UNIT,
-                PIXELS_PER_UNIT
-            );
-            ctx.strokeStyle = '#111';
-            ctx.fillStyle = '#ccc';
-            ctx.fill();
-            ctx.stroke();
-        }
-    }
-    drawBuildings();
-    drawMessages();
-    drawArrows();
-    drawBullets();
-    drawOtherPlayers();
-    drawCivilians();
+    ctx.fillStyle = '#ccc';
+    ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+    let allObjects = [
+        [FIRED_BULLETS, drawBullets], 
+        [map, drawBuildings], 
+        [DROPPED_MESSAGES, drawMessages], 
+        [DROPPED_ARROWS, drawArrows], 
+        [EXTERNAL_PLAYERS, drawOtherPlayers], 
+        [ACTIVE_CIVILIANS, drawCivilians]
+    ];
+
+    allObjects.forEach(function(arr) {
+        let drawFunc = arr[1];
+        let filteredArr = getNearObjects(arr[0]);
+        drawFunc(filteredArr);
+    });
     ctx.restore();
 }
 
@@ -533,21 +544,21 @@ function genericObjectDraw(arr, cls) {
     });
 }
 
-function drawBuildings() {
-    genericObjectDraw(map, Building);
+function drawBuildings(buildings) {
+    genericObjectDraw(buildings, Building);
 }
-function drawMessages() {
-    genericObjectDraw(DROPPED_MESSAGES, Message);
+function drawMessages(msgs) {
+    genericObjectDraw(msgs, Message);
 }
-function drawArrows() {
-    for (let arrow = 0; arrow < DROPPED_ARROWS.length; arrow++) {
-        let drawData = DROPPED_ARROWS[arrow];
+function drawArrows(arrs) {
+    for (let arrow = 0; arrow < arrs.length; arrow++) {
+        let drawData = arrs[arrow];
         GroundArrow.draw(drawData.pos, drawData.rotation, drawData.opacity);
     }
 }
-function drawBullets() {
-    for (let bullet = 0; bullet < FIRED_BULLETS.length; bullet++) {
-            let drawData = FIRED_BULLETS[bullet];
+function drawBullets(bulls) {
+    for (let bullet = 0; bullet < bulls.length; bullet++) {
+            let drawData = bulls[bullet];
             Bullet.draw(drawData.pos, drawData.rad);
     }
 }
@@ -558,14 +569,14 @@ function drawCursor() {
     ctx.stroke();
 }
 
-function drawOtherPlayers() {
-    Object.keys(EXTERNAL_PLAYERS).forEach(p => {
-        EXTERNAL_PLAYERS[p].absoluteDraw();
+function drawOtherPlayers(plyrs) {
+    Object.keys(plyrs).forEach(p => {
+        plyrs[p].absoluteDraw();
     });
 }
 
-function drawCivilians() {
-    genericObjectDraw(ACTIVE_CIVILIANS, Civilian);
+function drawCivilians(civs) {
+    genericObjectDraw(civs, Civilian);
 }
 
 /** Socket listeners */
