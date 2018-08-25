@@ -233,6 +233,11 @@ pp.drawUI = function() {
         ctx.textAlign = 'right';
         ctx.fillText("PLAYER TYPE: " + this.type, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 20);
         ctx.strokeText("PLAYER TYPE: " + this.type, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 20);
+        ctx.textAlign = 'left';
+        let px = this.pos.x.toFixed(2);
+        let py = this.pos.y.toFixed(2);
+        ctx.fillText("PLAYER POS: " + px + "," + py, 10, CANVAS_HEIGHT - 20);
+        ctx.strokeText("PLAYER POS: " + px + "," + py, 10, CANVAS_HEIGHT - 20);
     }
 }
 

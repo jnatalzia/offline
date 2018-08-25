@@ -1,7 +1,7 @@
 "use strict";
 
-const MAP_WIDTH = 1000;
-const MAP_HEIGHT = 1000;
+const MAP_WIDTH = 5000;
+const MAP_HEIGHT = 5000;
 
 /** Types/Enums */
 const PLAYER_COURIER = 'COURIER';
@@ -54,6 +54,11 @@ function getRandomEntryInArr(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function getRandomEntryInArrWithIdx(arr) {
+    let idx = Math.floor(Math.random() * arr.length);
+    return [arr[idx], idx];
+}
+
 function generateHitbox(pos, size) {
     return {
         x: pos.x - size.w/2,
@@ -98,6 +103,7 @@ function genRemovalFromArray(arr) {
 function GroundArrow(x, y, rotation) {
     this.id = genId();
     this.pos = {x: x, y:y};
+    this.size = {w: 30, h: 30};
     this.rotation = rotation;
     this.removing = false;
     this.opacity = 1;
@@ -238,10 +244,11 @@ const CIV_STATES = {
     STATIC: 2
 };
 
-function Civilian(x, y, map, removeCB) {
+function Civilian(x, y, map, myChunk, removeCB) {
     this.id = genId();
     this.distanceFunction = this.DiagonalDistance;
     this.findNeighbours = this.DiagonalNeighbours;
+    this.chunk = myChunk;
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
     this.currentPath = [];
@@ -287,6 +294,8 @@ civProto.updateWalk = function() {
             this.vel.x = Math.cos(derivedRadianRotation) * this.speed;
             this.vel.y = Math.sin(derivedRadianRotation) * this.speed;
         } else {
+            // Set our chunk to our dest chunk
+            this.chunk = this.destChunk;
             this.pos = this.path[this.pathIdx - 1];
             this.path = [];
             this.chooseState();
@@ -299,6 +308,7 @@ civProto.updateWalk = function() {
 }
 
 civProto.chooseState = function() {
+    console.log('Civilian choosing state');
     let randState = Math.random();
 
     if (randState < .25) {
@@ -329,21 +339,56 @@ civProto.heuristic = function(end, node) {
 }
 
 civProto.determineNewDest = function () {
+    console.log('Determining destination');
     let bOverlap = true;
-    let randDestX, randDestY;
+    let randDestX, randDestY, xidx, yidx;
+    // full chunk to left and right
+    let xSliceAmt = X_INTERVALS_PER_CHUNK;
+    let ySliceAmt = Y_INTERVALS_PER_CHUNK;
+    let xArrStart = this.chunk.x - xSliceAmt * 2;
+    let yArrStart = this.chunk.y - ySliceAmt * 2;
+    let xindices = [], yindices = [];
+
+    for(let i = xArrStart; i < this.chunk.x - xSliceAmt; i++) {
+        if (i > 0 && i < BUILD_X_OPTS.length - 1) xindices.push(i);
+    }
+    if (xindices.length === 0) xindices.push(this.chunk.x);
+    for(let i = yArrStart; i < this.chunk.y - ySliceAmt; i++) {
+        if (i > 0 && i < BUILD_Y_OPTS.length - 1) yindices.push(i);
+    }
+    if (yindices.length === 0) yindices.push(this.chunk.y);
+
+    let count = 0;
     while (bOverlap) {
-        randDestY = getRandomEntryInArr(BUILD_Y_OPTS);
-        randDestX = getRandomEntryInArr(BUILD_X_OPTS);
+        count++;
+        xidx = getRandomEntryInArr(xindices);
+        yidx = getRandomEntryInArr(yindices);
+        randDestX = BUILD_X_OPTS[xidx];
+        randDestY = BUILD_Y_OPTS[yidx];
 
         bOverlap = this.obstacles.some(b => {
             let hb = b.getHitbox();
+            hb.w = hb.w * 1.25;
+            hb.h = hb.h * 1.25;
             let destHB = generateHitbox({x: randDestX, y: randDestY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT})
             return hasOverlap(hb, destHB);
         });
 
-        bOverlap = bOverlap || getDist(this.pos, {x: randDestX, y: randDestY}) < 30;
+        bOverlap = bOverlap || getDist(this.pos, {x: randDestX, y: randDestY}) < 25;
+        if (count % 10 === 0) {
+            console.log('determined dest ' + count + ' times');
+            if (count > 100) {
+                console.log(randDestX);
+                console.log(randDestY);
+                break;
+            }
+        }
     }
-
+    // normalize chunk over missing data
+    this.destChunk = {
+        x: xidx,
+        y: yidx
+    };
     return {x: randDestX, y: randDestY};
 }
 
@@ -503,8 +548,8 @@ civProto.getHitbox = function() {
 }
 
 civProto.canWalkHere = function(x, y) {
+    let hb = generateHitbox({x: x, y: y}, {w: this.size.w, h: this.size.h});
     return !this.obstacles.some(b => {
-        let hb = generateHitbox({x: x, y: y}, {w: aStarGridInterval, h: aStarGridInterval});
         return hasOverlap(hb, b.getHitbox());
     });
 }

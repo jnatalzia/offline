@@ -24,8 +24,8 @@ for (let i = aStarGridInterval; i < adjustedHeight; i+= aStarGridInterval) {
     BUILD_Y_OPTS.push(i + aStarGridInterval);
 }
 
-const X_CHUNKS = 3;
-const Y_CHUNKS = 3;
+const X_CHUNKS = 10;
+const Y_CHUNKS = 10;
 
 const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
 const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
@@ -54,13 +54,13 @@ function findRoom(user) {
 	}
 
 	let rid = createRoom();
-	ROOMS[rid].addUser(user);
+    ROOMS[rid].addUser(user);
 }
 
 function createRoom() {
 	let roomId = genId();
-	console.log('Created a new room with id: ' + roomId);
-	ROOMS[roomId] = new GameRoom(roomId);
+    ROOMS[roomId] = new GameRoom(roomId);
+    console.log('Created a new room with id: ' + roomId);
 	return roomId;
 }
 
@@ -73,9 +73,6 @@ class GameRoom {
 		this.takenRoles = [0, 0, 0];
 		this.id = id;
 		this.waitingForPlayers = true;
-
-		this.setupUpdate();
-
 		this.bullets = [];
 		this.arrows = [];
 		this.activeArrows = 0;
@@ -84,31 +81,55 @@ class GameRoom {
 		this.civilians = [];
 		this.prevTime = Date.now();
         // TEST DATA
-        // this.civilians.push(new Civilian(0, 0, MAP_WIDTH, MAP_HEIGHT, genRemovalFromArray(this.civilians)));
-        // this.civilians.push(new Civilian(MAP_WIDTH, MAP_HEIGHT, 0, 0, genRemovalFromArray(this.civilians)));
-        for (let i = 0; i < 10; i++) {
+		for (let i = 0; i < 10; i++) {
+            console.log('Generating Civilian');
 			let civ = this.genCivilian();
-
             this.civilians.push(civ);
+            console.log('Civ pushed to game state');
         }
+        console.log('civilians generated');
+        this.setupUpdate();
 	}
 
 	genCivilian() {
+        const time = Date.now();
 		let bOverlap = true;
-		let randX, randY;
+        let randX, randY, xOptWithIdx, yOptWithIdx;
+        let count = 0;
 		while (bOverlap) {
-			randX = getRandomEntryInArr(BUILD_X_OPTS);
-			randY = getRandomEntryInArr(BUILD_Y_OPTS);
+            count++;
+			xOptWithIdx = getRandomEntryInArrWithIdx(BUILD_X_OPTS);
+            yOptWithIdx = getRandomEntryInArrWithIdx(BUILD_Y_OPTS);
+            randX = xOptWithIdx[0];
+            randY = yOptWithIdx[0];
+            let civHB = generateHitbox({x: randX, y: randY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
 
 			bOverlap = this.map.some(b => {
 				let hb = b.getHitbox();
-				let civHB = generateHitbox({x: randX, y: randY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
-				return hasOverlap(hb, civHB);
-			});
+                
+				if (hasOverlap(hb, civHB)) {
+                    console.log('overlap with building: ' + b.id);
+                    return true;
+                }
+
+                return false;
+            });
+            
+            if (count % 10 === 0) {
+                console.log(count + " loops");
+            }
 		}
 
-
-		return new Civilian(randX, randY, this.map, genRemovalFromArray(this.civilians));
+        let c = new Civilian(
+            randX, randY, 
+            this.map, 
+            {x: xOptWithIdx[1], y: yOptWithIdx[1]}, 
+            genRemovalFromArray(this.civilians)
+        );
+        const diff = Date.now() - time;
+        console.log('Successful Civ Generation');
+        console.log(`Took ${diff}ms`);
+        return c;
 	}
 
 	generateMap() {
@@ -123,6 +144,7 @@ class GameRoom {
 
             map.push(b);
         }
+        console.log('Map Generated');
         return map;
     }
 
