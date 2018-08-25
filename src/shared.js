@@ -29,6 +29,22 @@ const max = Math.max;
 const pow = Math.pow;
 const sqrt = Math.sqrt;
 
+/** Pathing */
+let GRID = [];
+
+for (let i = 0; i <= MAP_WIDTH; i += aStarGridInterval) {
+    GRID.push([]);
+    let idx = GRID.length - 1;
+    for (let k = 0; k <= MAP_HEIGHT; k += aStarGridInterval) {
+        GRID[idx].push({x: i, y: k});
+    }
+}
+
+// just fill the array with dummy values to pad the empty space.
+const worldWidth = GRID[0].length * aStarGridInterval;
+const worldHeight = GRID.length * aStarGridInterval;
+const worldSize =	worldWidth * worldHeight;
+
 /** Utils */
 function genId() {
 	return Math.random().toString(36).substring(7);
@@ -223,6 +239,8 @@ const CIV_STATES = {
 
 function Civilian(x, y, map, removeCB) {
     this.id = genId();
+    this.distanceFunction = this.DiagonalDistance;
+    this.findNeighbours = this.DiagonalNeighbours;
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
     this.currentPath = [];
@@ -327,6 +345,61 @@ Civilian.prototype.determineNewDest = function () {
     return {x: randDestX, y: randDestY};
 }
 
+/** Astar methods */
+Civilian.prototype.DiagonalDistance = function(Point, Goal)
+{	// diagonal movement - assumes diag dist is 1, same as cardinals
+    return max(abs(Point.x - Goal.x), abs(Point.y - Goal.y));
+}
+
+Civilian.prototype.Neighbours = function(x, y)
+{
+    var	N = y - aStarGridInterval,
+    S = y + aStarGridInterval,
+    E = x + aStarGridInterval,
+    W = x - aStarGridInterval,
+    myN = N > -aStarGridInterval && this.canWalkHere(x, N, this.obstacles),
+    myS = S < worldHeight && this.canWalkHere(x, S, this.obstacles),
+    myE = E < worldWidth && this.canWalkHere(E, y, this.obstacles),
+    myW = W > -aStarGridInterval && this.canWalkHere(W, y, this.obstacles),
+    result = [];
+
+    if(myN)
+    result.push({x:x, y:N});
+    if(myE)
+    result.push({x:E, y:y});
+    if(myS)
+    result.push({x:x, y:S});
+    if(myW)
+    result.push({x:W, y:y});
+
+    this.findNeighbours(myN, myS, myE, myW, N, S, E, W, result, this.obstacles);
+
+    return result;
+}
+
+
+
+// returns every available North East, South East,
+// South West or North West cell - no squeezing through
+// "cracks" between two diagonals
+Civilian.prototype.DiagonalNeighbours = function(myN, myS, myE, myW, N, S, E, W, result)
+{
+    if(myN)
+    {
+        if(myE && this.canWalkHere(E, N, this.obstacles))
+        result.push({x:E, y:N});
+        if(myW && this.canWalkHere(W, N, this.obstacles))
+        result.push({x:W, y:N});
+    }
+    if(myS)
+    {
+        if(myE && this.canWalkHere(E, S, this.obstacles))
+        result.push({x:E, y:S});
+        if(myW && this.canWalkHere(W, S, this.obstacles))
+        result.push({x:W, y:S});
+    }
+}
+
 Civilian.prototype.determinePath = function() {
     var pathStart = this.pos;
     var pathEnd = this.dest;
@@ -388,7 +461,7 @@ Civilian.prototype.determinePath = function() {
         else // not the destination
         {
             // find which nearby nodes are walkable
-            myNeighbours = Neighbours(myNode.x, myNode.y, this.obstacles);
+            myNeighbours = this.Neighbours(myNode.x, myNode.y, this.obstacles);
             // test each one that hasn't been tried already
             for(i = 0, j = myNeighbours.length; i < j; i++)
             {
@@ -396,9 +469,9 @@ Civilian.prototype.determinePath = function() {
                 if (!AStar[myPath.value])
                 {
                     // estimated cost of this particular route so far
-                    myPath.g = myNode.g + distanceFunction(myNeighbours[i], myNode);
+                    myPath.g = myNode.g + this.distanceFunction(myNeighbours[i], myNode);
                     // estimated cost of entire guessed route to the destination
-                    myPath.f = myPath.g + distanceFunction(myNeighbours[i], mypathEnd);
+                    myPath.f = myPath.g + this.distanceFunction(myNeighbours[i], mypathEnd);
                     // remember this new path for testing above
                     Open.push(myPath);
                     // mark this node in the world graph as visited
@@ -427,77 +500,8 @@ Civilian.prototype.getHitbox = function() {
     return generateHitbox(this.pos, this.size);
 }
 
-/** Pathing */
-let GRID = [];
-
-for (let i = 0; i <= MAP_WIDTH; i += aStarGridInterval) {
-    GRID.push([]);
-    let idx = GRID.length - 1;
-    for (let k = 0; k <= MAP_HEIGHT; k += aStarGridInterval) {
-        GRID[idx].push({x: i, y: k});
-    }
-}
-
-// just fill the array with dummy values to pad the empty space.
-var worldWidth = GRID[0].length * aStarGridInterval;
-var worldHeight = GRID.length * aStarGridInterval;
-var worldSize =	worldWidth * worldHeight;
-
-function DiagonalDistance(Point, Goal)
-{	// diagonal movement - assumes diag dist is 1, same as cardinals
-    return max(abs(Point.x - Goal.x), abs(Point.y - Goal.y));
-}
-
-function Neighbours(x, y, buildings)
-{
-    var	N = y - aStarGridInterval,
-    S = y + aStarGridInterval,
-    E = x + aStarGridInterval,
-    W = x - aStarGridInterval,
-    myN = N > -aStarGridInterval && canWalkHere(x, N, buildings),
-    myS = S < worldHeight && canWalkHere(x, S, buildings),
-    myE = E < worldWidth && canWalkHere(E, y, buildings),
-    myW = W > -aStarGridInterval && canWalkHere(W, y, buildings),
-    result = [];
-
-    if(myN)
-    result.push({x:x, y:N});
-    if(myE)
-    result.push({x:E, y:y});
-    if(myS)
-    result.push({x:x, y:S});
-    if(myW)
-    result.push({x:W, y:y});
-    findNeighbours(myN, myS, myE, myW, N, S, E, W, result, buildings);
-    return result;
-}
-
-var distanceFunction = DiagonalDistance;
-var findNeighbours = DiagonalNeighbours;
-
-// returns every available North East, South East,
-// South West or North West cell - no squeezing through
-// "cracks" between two diagonals
-function DiagonalNeighbours(myN, myS, myE, myW, N, S, E, W, result, buildings)
-{
-    if(myN)
-    {
-        if(myE && canWalkHere(E, N, buildings))
-        result.push({x:E, y:N});
-        if(myW && canWalkHere(W, N, buildings))
-        result.push({x:W, y:N});
-    }
-    if(myS)
-    {
-        if(myE && canWalkHere(E, S, buildings))
-        result.push({x:E, y:S});
-        if(myW && canWalkHere(W, S, buildings))
-        result.push({x:W, y:S});
-    }
-}
-
-function canWalkHere(x, y, buildings) {
-    return !buildings.some(b => {
+Civilian.prototype.canWalkHere = function(x, y) {
+    return !this.obstacles.some(b => {
         let hb = generateHitbox({x: x, y: y}, {w: aStarGridInterval, h: aStarGridInterval});
         return hasOverlap(hb, b.getHitbox());
     });

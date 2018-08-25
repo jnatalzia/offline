@@ -190,8 +190,7 @@ class GameRoom {
 	}
 
 	setupUpdate() {
-		setInterval(this.update.bind(this), TICK_TIME)
-		// setTimeout(this.update.bind(this), TICK_TIME);
+		this.updateInterval = setInterval(this.update.bind(this), TICK_TIME)
 	}
 
 	updateClients() {
@@ -372,6 +371,7 @@ class GameRoom {
 
 	remove() {
 		delete ROOMS[this.id];
+		clearInterval(this.updateInterval);
 	}
 
 	selectPlayerType() {
@@ -447,7 +447,6 @@ class User {
 	}
 
 }
-
 /**
  * Socket.IO on connect event
  * @param {Socket} socket
