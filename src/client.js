@@ -404,7 +404,7 @@ Courier.prototype.canPickUp = function(msg) {
 }
 
 Courier.prototype.getAdjustedSpeed = function(t) {
-    return this.speed * (t/100);
+    return this.speed * (16/t);
 }
 
 function Dictator(x, y, isNotPlayer) {
