@@ -225,7 +225,10 @@ class GameRoom {
 					console.log('10 greater than 50ms updates');
 				}
 			}
-		}, TICK_TIME);
+        }, TICK_TIME);
+        this.updateClientInterval = setInterval(function() {
+            that.updateClients();
+        }, SERVER_UPDATE_TICK);
         // this.update();
 	}
 
@@ -262,7 +265,6 @@ class GameRoom {
 			c.update(timeDiff);
 		});
 
-		this.updateClients();
 		this.prevTime = currTime;
 	}
 
@@ -331,7 +333,8 @@ class GameRoom {
 				id: u.id,
 				size: u.size,
 				pos: u.pos,
-				type: u.type
+                type: u.type,
+                vel: u.vel
 			}
 		});
 	}
@@ -350,7 +353,8 @@ class GameRoom {
 		u.room = this;
 		let type = this.selectPlayerType();
 		u.type = type;
-		u.pos = this.getRandomPos({w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
+        u.pos = this.getRandomPos({w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
+        u.vel = {x: 0, y: 0};
 		console.log('User of type: ' + type + 'added.')
 		this.takenRoles[PLAYER_ROLE_IDX[type]] = 1;
 
@@ -358,7 +362,7 @@ class GameRoom {
 			type: type
 		});
 		Object.keys(this.users).forEach(uid => {
-			this.users[uid].socket.emit('player-added', { id: u.id, type: type, pos: u.pos });
+			this.users[uid].socket.emit('player-added', { id: u.id, type: type, pos: u.pos, vel: u.vel });
 		});
 		this.users[u.id] = u;
 
@@ -368,7 +372,7 @@ class GameRoom {
 			Object.keys(this.users).forEach(uid => {
 				let usr = this.users[uid];
 				usr.socket.emit('set-state', {state: GAME_STATES.STARTING});
-				setTimeout(() => {
+				this.startTimeout = setTimeout(() => {
 					usr.start();
 				}, 3000)
 			});
@@ -403,7 +407,7 @@ class GameRoom {
 			return;
 		} else {
 			console.log('Finding new user to replace');
-			clearInterval(this.updateInterval);
+			this.clearAllIntervals();
 			Object.keys(this.users).forEach(uid => {
 				this.users[uid].socket.emit('set-state', { state: GAME_STATES.CHOOSING_ROOM });
 			});
@@ -413,8 +417,14 @@ class GameRoom {
 	remove() {
 		delete ROOMS[this.id];
 		// Finding new room for players
-		clearInterval(this.updateInterval);
-	}
+		this.clearAllIntervals();
+    }
+    
+    clearAllIntervals() {
+        clearInterval(this.updateClientInterval);
+        clearInterval(this.updateInterval);
+        clearTimeout(this.startTimeout);
+    }
 
 	selectPlayerType() {
 		const availableRoles = [PLAYER_MESSAGE_DROPPER, PLAYER_DICTATOR, PLAYER_COURIER]
@@ -458,7 +468,8 @@ class User {
 
 	setupSocketHandlers() {
 		this.socket.on('client-update', (data) => {
-			this.pos = data.playerPos;
+            this.pos = data.playerPos;
+            this.vel = data.playerVel;
 		});
 		this.socket.on('ready', (data) => {
 			this.ready = true;

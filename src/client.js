@@ -117,6 +117,7 @@ function Extendable() {}
 /** Player Class */
 function Player(x, y, isNotPlayer) {
     this.pos = { x: x, y: y };
+    this.vel = {x: 0 ,y: 0};
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
     this.speed = 1.25;
     this.isPlayer = !isNotPlayer;
@@ -163,7 +164,7 @@ pp.update = function(t) {
         s = true;
     }
 
-    let vel = {x: 0, y: 0};
+    let vel = this.vel = {x: 0, y: 0};
     if (n || s || e || w) {
         let rotation = 1.5; // n
         if (n && w) rotation = 1.25
@@ -237,7 +238,7 @@ pp.draw = function() {
     ctx.restore();
 }
 
-pp.absoluteDraw = function() {
+pp.absoluteDraw = function(t) {
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
     ctx.beginPath();
@@ -595,6 +596,7 @@ function updateGameStateFromServer(data) {
     players.forEach(p => {
         let internalP = EXTERNAL_PLAYERS[EXTERNAL_PLAYER_INDICES[p.id]];
         internalP.pos = p.pos;
+        internalP.vel = p.vel;
     });
     /** Update arrows */
     DROPPED_ARROWS = data.arrows;
@@ -621,7 +623,7 @@ function update(time) {
             break;
         case GAME_STATES.PLAYING:
             player.update(deltaTime);
-            drawPlaying();
+            drawPlaying(deltaTime);
             break;
         case GAME_STATES.CHOOSING_ROOM:
             chooseRoomUpdate();
@@ -639,9 +641,9 @@ function chooseRoomUpdate() {
 }
 
 /** Main Draw Loop */
-function drawPlaying() {
+function drawPlaying(t) {
     clearBoard();
-    drawBackground();
+    drawBackground(t);
     player.draw();
     drawUI();
 }
@@ -688,7 +690,7 @@ function getNearObjects(arr) {
     });
 }
 
-function drawBackground() {
+function drawBackground(t) {
     ctx.save();
     ctx.translate(-player.pos.x + CANVAS_WIDTH/2,-player.pos.y + CANVAS_HEIGHT/2)
     ctx.fillStyle = '#ccc';
@@ -706,7 +708,7 @@ function drawBackground() {
     allObjects.forEach(function(arr) {
         let drawFunc = arr[1];
         let filteredArr = getNearObjects(arr[0]);
-        drawFunc(filteredArr);
+        drawFunc(filteredArr, t);
     });
     ctx.restore();
 }
@@ -729,10 +731,12 @@ function drawArrows(arrs) {
         GroundArrow.draw(drawData.pos, drawData.rotation, drawData.opacity);
     }
 }
-function drawBullets(bulls) {
+function drawBullets(bulls, t) {
     for (let bullet = 0; bullet < bulls.length; bullet++) {
-            let drawData = bulls[bullet];
-            Bullet.draw(drawData.pos, drawData.rad);
+        let drawData = bulls[bullet];
+        let bulletVel = getAdjustedVel(drawData.vel, t);
+        drawData.pos = {x: drawData.pos.x + (bulletVel.x), y: drawData.pos.y + (bulletVel.y)}
+        Bullet.draw(drawData.pos, drawData.rad);
     }
 }
 function drawCursor() {
@@ -742,9 +746,9 @@ function drawCursor() {
     ctx.stroke();
 }
 
-function drawOtherPlayers(plyrs) {
+function drawOtherPlayers(plyrs, t) {
     Object.keys(plyrs).forEach(p => {
-        plyrs[p].absoluteDraw();
+        plyrs[p].absoluteDraw(t);
     });
 }
 
@@ -764,7 +768,7 @@ socket.on('set-start', function(data) {
 socket.on('game-start', function(data) {
     console.log("Game start");
     currentGameState = GAME_STATES.PLAYING;
-    setInterval(updateServer, TICK_TIME);
+    setInterval(updateServer, SERVER_UPDATE_TICK);
 });
 
 socket.on('set-game-info', function(data) {
@@ -772,7 +776,9 @@ socket.on('set-game-info', function(data) {
     players.forEach(p => {
         const type = getClassFromType(p.type);
         EXTERNAL_PLAYER_INDICES[p.id] = EXTERNAL_PLAYERS.length;
-        EXTERNAL_PLAYERS.push(new type(p.pos.x, p.pos.y, true));
+        let newPlayer = new type(p.pos.x, p.pos.y, true)
+        EXTERNAL_PLAYERS.push(newPlayer);
+        newPlayer.vel = data.vel;
     });
     map = data.buildings;
 });
@@ -784,7 +790,9 @@ socket.on('game-update', function(data) {
 socket.on('player-added', function(data) {
     const type = getClassFromType(data.type);
     EXTERNAL_PLAYER_INDICES[data.id] = EXTERNAL_PLAYERS.length;
-    EXTERNAL_PLAYERS.push(new type(data.pos.x, data.pos.y, true));
+    let p = new type(data.pos.x, data.pos.y, true)
+    EXTERNAL_PLAYERS.push(p);
+    p.vel = data.vel;
 });
 
 socket.on('player-removed', function(data) {
@@ -800,7 +808,8 @@ socket.on('set-state', function(data) {
 /** Send client updates to server */
 function updateServer() {
     socket.emit('client-update', {
-        playerPos: player.pos
+        playerPos: player.pos,
+        playerVel: player.vel
     });
 }
 
