@@ -1,7 +1,7 @@
 "use strict";
 
-const MAP_WIDTH = 2500;
-const MAP_HEIGHT = 2500;
+const MAP_WIDTH = 3000;
+const MAP_HEIGHT = 3000;
 
 const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
@@ -11,14 +11,14 @@ const CIV_VELOCITIES = [1.5, .5, 0, 1, 1.75, 1.25, .75, .25].map(r => {
 });
 
 const CIV_NOT_NEIGH = [
-    [DIR_S, DIR_SE, DIR_SW],
-    [DIR_N, DIR_NW, DIR_NE],
-    [DIR_NW, DIR_W, DIR_SW],
-    [DIR_E, DIR_NE, DIR_SE],
-    [DIR_S, DIR_SW, DIR_W],
-    [DIR_S, DIR_SE, DIR_E],
-    [DIR_N, DIR_NE, DIR_E],
-    [DIR_N, DIR_NW, DIR_W]
+    [DIR_S, DIR_SE, DIR_SW, DIR_W, DIR_E],
+    [DIR_N, DIR_NW, DIR_NE, DIR_W, DIR_E],
+    [DIR_NW, DIR_W, DIR_SW, DIR_N, DIR_S],
+    [DIR_E, DIR_NE, DIR_SE, DIR_N, DIR_S],
+    [DIR_S, DIR_SW, DIR_W, DIR_SE, DIR_NW],
+    [DIR_S, DIR_SE, DIR_E, DIR_SW, DIR_NE],
+    [DIR_N, DIR_NE, DIR_E, DIR_NW, DIR_SE],
+    [DIR_N, DIR_NW, DIR_W, DIR_SW, DIR_NE]
 ];
 
 /** Types/Enums */
@@ -258,6 +258,7 @@ function Civilian(x, y, buildings, removeCB) {
     this.timeWaited = 0;
     this.buildings = buildings;
     this.chooseState();
+    console.log('Instantiated Civ at ' + this.pos.x + ',' + this.pos.y)
 }
 
 let civProto = Civilian.prototype;
@@ -298,7 +299,6 @@ civProto.updateWalk = function(t) {
     };
 
     if (!this.canWalkHere(adjustedPos.x, adjustedPos.y)) {
-        console.log('Determining vel because can\'t walk');
         this.determineNewVelocity();
         return;
     }
@@ -319,6 +319,7 @@ civProto.chooseState = function() {
     } else if (randState >= .25) {
         console.log('Chose walking state');
         this.maxWaitTime = 10000 + Math.floor(Math.random() * 8000);
+        this.dir = undefined;
         this.velocity = this.determineNewVelocity();
         this.timeWaited = 0;
         this.state = CIV_STATES.WALKING;
@@ -337,7 +338,6 @@ civProto.determineNewVelocity = function() {
     });
 
     if (possibleDirections.length === 0) {
-        console.log('setting all directions to neighbors')
         possibleDirections = allNeigh;
     }
 

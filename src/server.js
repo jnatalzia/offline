@@ -24,8 +24,8 @@ for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedHeight; i += GRID_INTERVAL) {
     BUILD_Y_OPTS.push(i);
 }
 
-const X_CHUNKS = 4;
-const Y_CHUNKS = 4;
+const X_CHUNKS = 8;
+const Y_CHUNKS = 8;
 
 const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
 const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
@@ -82,13 +82,10 @@ class GameRoom {
 		this.civilians = [];
 		this.prevTime = Date.now();
         // TEST DATA
-		for (let i = 0; i < 1; i++) {
-            console.log('Generating Civilian');
+		for (let i = 0; i < 20; i++) {
 			let civ = this.genCivilian();
             this.civilians.push(civ);
-            console.log('Civ pushed to game state');
         }
-        console.log('civilians generated');
         this.setupUpdate();
 	}
 
@@ -111,15 +108,11 @@ class GameRoom {
             genRemovalFromArray(this.civilians)
         );
         const diff = Date.now() - time;
-        console.log('Successful Civ Generation');
-		console.log(`Took ${diff}ms`);
-		console.log('C starting pos: ' + c.pos.x + ', ' + c.pos.y);
         return c;
 	}
 
 	generateMap() {
         let map = [];
-        console.log('Generating ' + NUM_BUILDINGS + ' buildings');
 		for (let i = 0; i < NUM_BUILDINGS; i++) {
             let b = this.generateBuilding(i);
 
@@ -131,7 +124,6 @@ class GameRoom {
 
             map.push(b);
 		}
-		console.log('Map generated');
         return {buildings: map};
     }
 
@@ -201,7 +193,15 @@ class GameRoom {
 	}
 
 	setupUpdate() {
-        this.updateInterval = setInterval(this.update.bind(this), TICK_TIME);
+		const that = this;
+        this.updateInterval = setInterval(function() {
+			const time = Date.now();
+			that.update();
+			const updateTime = Date.now() - time;
+			if (updateTime > 100) {
+				console.log('greater than 100ms update');
+			}
+		}, TICK_TIME);
         // this.update();
 	}
 
