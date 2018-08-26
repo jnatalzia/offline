@@ -467,7 +467,6 @@ function updateGameStateFromServer(data) {
         let internalP = EXTERNAL_PLAYERS[pKey];
         internalP.pos = p.pos;
     });
-
     /** Update arrows */
     DROPPED_ARROWS = data.arrows;
     /** Update Bullets */
@@ -599,7 +598,8 @@ socket.on('set-game-info', function(data) {
         const type = getClassFromType(p.type);
         EXTERNAL_PLAYERS[p.id] = new type(p.pos.x, p.pos.y, true);
     });
-    map = data.map;
+    map = data.buildings;
+    bullets 
 });
 
 socket.on('game-update', function(data) {

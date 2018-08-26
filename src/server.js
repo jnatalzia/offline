@@ -10,22 +10,22 @@ const ROOMS = {
 };
 
 /** Server constants */
-let BUILDING_WIDTHS = [100, 110, 120, 130, 140, 150];
-let MAX_BUILDING_WIDTH = 150;
+let BUILDING_WIDTHS = [0, 1, 2, 3, 4, 5, 6].map(n => 100 + (n*A_STAR_GRID_INTERVAL));
+let MAX_BUILDING_WIDTH = BUILDING_WIDTHS[BUILDING_WIDTHS.length - 1];
 
 let BUILD_X_OPTS = [];
 let adjustedWidth = MAP_WIDTH - MAX_BUILDING_WIDTH / 2;
-for (let i = aStarGridInterval; i < adjustedWidth; i+= aStarGridInterval) {
-    BUILD_X_OPTS.push(i + aStarGridInterval);
+for (let i = 0; i < MAP_WIDTH; i += A_STAR_GRID_INTERVAL) {
+    BUILD_X_OPTS.push(i + A_STAR_GRID_INTERVAL);
 }
 let adjustedHeight = MAP_HEIGHT - MAX_BUILDING_WIDTH / 2;
 let BUILD_Y_OPTS = [];
-for (let i = aStarGridInterval; i < adjustedHeight; i+= aStarGridInterval) {
-    BUILD_Y_OPTS.push(i + aStarGridInterval);
+for (let i = 0; i < MAP_HEIGHT; i += A_STAR_GRID_INTERVAL) {
+    BUILD_Y_OPTS.push(i + A_STAR_GRID_INTERVAL);
 }
 
-const X_CHUNKS = 10;
-const Y_CHUNKS = 10;
+const X_CHUNKS = 4;
+const Y_CHUNKS = 4;
 
 const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
 const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
@@ -77,7 +77,9 @@ class GameRoom {
 		this.arrows = [];
 		this.activeArrows = 0;
         this.messages = [];
-        this.map = this.generateMap();
+        let map = this.generateMap();
+        this.buildings = map.buildings;
+        this.grid = map.grid;
 		this.civilians = [];
 		this.prevTime = Date.now();
         // TEST DATA
@@ -94,36 +96,24 @@ class GameRoom {
 	genCivilian() {
         const time = Date.now();
 		let bOverlap = true;
-        let randX, randY, xOptWithIdx, yOptWithIdx;
+        let randX, randY;
         let count = 0;
 		while (bOverlap) {
             count++;
-			xOptWithIdx = getRandomEntryInArrWithIdx(BUILD_X_OPTS);
-            yOptWithIdx = getRandomEntryInArrWithIdx(BUILD_Y_OPTS);
-            randX = xOptWithIdx[0];
-            randY = yOptWithIdx[0];
+            randX = getRandomEntryInArr(BUILD_X_OPTS);
+            randY = getRandomEntryInArr(BUILD_Y_OPTS);
             let civHB = generateHitbox({x: randX, y: randY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
-
-			bOverlap = this.map.some(b => {
-				let hb = b.getHitbox();
-                
-				if (hasOverlap(hb, civHB)) {
-                    console.log('overlap with building: ' + b.id);
-                    return true;
-                }
-
-                return false;
-            });
-            
-            if (count % 10 === 0) {
-                console.log(count + " loops");
+            if (this.grid[randX/A_STAR_GRID_INTERVAL] === undefined || this.grid[randX/A_STAR_GRID_INTERVAL][randY/A_STAR_GRID_INTERVAL] === undefined) {
+                console.log(this.grid[randX/A_STAR_GRID_INTERVAL]);
+                console.log(randX/A_STAR_GRID_INTERVAL);
+                console.log(randY/A_STAR_GRID_INTERVAL);
+                return;
             }
+			bOverlap = this.grid[randX/A_STAR_GRID_INTERVAL][randY/A_STAR_GRID_INTERVAL].cost > 0;
 		}
-
         let c = new Civilian(
             randX, randY, 
-            this.map, 
-            {x: xOptWithIdx[1], y: yOptWithIdx[1]}, 
+            this.grid, 
             genRemovalFromArray(this.civilians)
         );
         const diff = Date.now() - time;
@@ -133,7 +123,9 @@ class GameRoom {
 	}
 
 	generateMap() {
+        let dupedGrid = GRID.map(g => [].concat(g));
         let map = [];
+        let count = 0;
         console.log('Generating ' + NUM_BUILDINGS + ' buildings');
 		for (let i = 0; i < NUM_BUILDINGS; i++) {
             let b = this.generateBuilding(i);
@@ -142,10 +134,25 @@ class GameRoom {
                 b = this.generateBuilding(i);
             }
 
+            let intervalsWide = Math.ceil(b.size.w / A_STAR_GRID_INTERVAL);
+            let intervalsHigh = Math.ceil(b.size.h / A_STAR_GRID_INTERVAL);
+            let startingXInterval = max(0, Math.floor((b.pos.x / A_STAR_GRID_INTERVAL) - (intervalsWide/2)));
+            let startingYInterval = max(0, Math.floor((b.pos.y / A_STAR_GRID_INTERVAL) - (intervalsHigh/2)));
+
+            let endingXInterval = min(startingXInterval + intervalsWide, dupedGrid.length - 1)
+            for (let i = startingXInterval; i < endingXInterval; i++) {
+                let endingYInterval = min(startingYInterval + intervalsHigh, dupedGrid[i].length);
+                for (let k = startingYInterval; k < endingYInterval; k++) {
+                    count++;
+                    dupedGrid[i][k].cost = 1;
+                }
+            }
+
             map.push(b);
         }
-        console.log('Map Generated');
-        return map;
+        console.log('marked ' + count + ' spots unavail');
+        console.log(MAP_WIDTH * MAP_HEIGHT / A_STAR_GRID_INTERVAL + ' spots overall');
+        return {buildings: map, grid: dupedGrid};
     }
 
     buildingOverlapsCurrent(b, map) {
@@ -186,7 +193,8 @@ class GameRoom {
 		if (msg) {
 			msg.destroy();
 		}
-		console.log(this.messages.length + " messages left");
+        console.log(this.messages.length + " messages left");
+        
 	}
 
 	addArrow(pos, rotation) {
@@ -208,11 +216,12 @@ class GameRoom {
 
 	addBullet(pos, rotation) {
 		const that = this;
-		this.bullets.push(new Bullet(pos.x, pos.y, rotation, genRemovalFromArray(that.bullets)));
+        this.bullets.push(new Bullet(pos.x, pos.y, rotation, genRemovalFromArray(that.bullets)));
 	}
 
 	setupUpdate() {
-		this.updateInterval = setInterval(this.update.bind(this), TICK_TIME)
+        this.updateInterval = setInterval(this.update.bind(this), TICK_TIME);
+        // this.update();
 	}
 
 	updateClients() {
@@ -263,8 +272,8 @@ class GameRoom {
         for (let b = 0; b < this.bullets.length; b++) {
             let bul = this.bullets[b];
             let shouldBreak = false;
-            for (let bu = 0; bu < this.map.length; bu++) {
-                let build = this.map[bu];
+            for (let bu = 0; bu < this.buildings.length; bu++) {
+                let build = this.buildings[bu];
                 if (hasOverlap(build.getHitbox(), bul.getHitbox())) {
                     bul.remove();
                     shouldBreak = true;
@@ -428,7 +437,7 @@ class User {
 		console.log("emitting " + Object.keys(this.room.users).length + " users to client");
 		this.socket.emit('set-game-info', {
             players: formattedPlayers,
-            map: this.room.map
+            buildings: this.room.buildings
 		});
 	}
 

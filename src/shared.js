@@ -1,7 +1,9 @@
 "use strict";
 
-const MAP_WIDTH = 5000;
-const MAP_HEIGHT = 5000;
+const MAP_WIDTH = 2500;
+const MAP_HEIGHT = 2500;
+
+const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
 /** Types/Enums */
 const PLAYER_COURIER = 'COURIER';
@@ -22,27 +24,28 @@ const PLAYER_HEIGHT = 15;
 
 const PIXELS_PER_UNIT = 50;
 const GRID_INTERVAL = 5;
-const aStarGridInterval = GRID_INTERVAL * 2;
+const A_STAR_GRID_INTERVAL = GRID_INTERVAL * 5;
 
 const abs = Math.abs;
 const max = Math.max;
+const min = Math.min;
 const pow = Math.pow;
 const sqrt = Math.sqrt;
 
 /** Pathing */
 let GRID = [];
 
-for (let i = 0; i <= MAP_WIDTH; i += aStarGridInterval) {
+for (let i = 0; i < MAP_WIDTH; i += A_STAR_GRID_INTERVAL) {
     GRID.push([]);
     let idx = GRID.length - 1;
-    for (let k = 0; k <= MAP_HEIGHT; k += aStarGridInterval) {
-        GRID[idx].push({x: i, y: k});
+    for (let k = 0; k < MAP_HEIGHT; k += A_STAR_GRID_INTERVAL) {
+        GRID[idx].push({x: i, y: k, cost: 0});
     }
 }
 
 // just fill the array with dummy values to pad the empty space.
-const worldWidth = GRID[0].length * aStarGridInterval;
-const worldHeight = GRID.length * aStarGridInterval;
+const worldWidth = GRID[0].length * A_STAR_GRID_INTERVAL;
+const worldHeight = GRID.length * A_STAR_GRID_INTERVAL;
 const worldSize =	worldWidth * worldHeight;
 
 /** Utils */
@@ -244,10 +247,8 @@ const CIV_STATES = {
     STATIC: 2
 };
 
-function Civilian(x, y, map, myChunk, removeCB) {
+function Civilian(x, y, grid, myChunk, removeCB) {
     this.id = genId();
-    this.distanceFunction = this.DiagonalDistance;
-    this.findNeighbours = this.DiagonalNeighbours;
     this.chunk = myChunk;
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
@@ -258,7 +259,7 @@ function Civilian(x, y, map, myChunk, removeCB) {
     this.path = [];
     this.pathIdx = 0;
     this.timeWaited = 0;
-    this.obstacles = map;
+    this.grid = grid;
     this.chooseState();
 }
 
@@ -284,24 +285,16 @@ civProto.incrementWaitTime = function(t) {
     }
 }
 
-civProto.updateWalk = function() {
-    if (this.isAtDest()) {
-        this.pathIdx++;
-        let newDest = this.path[this.pathIdx];
+civProto.updateWalk = function(t) {
+    this.timeWaited += t;
 
-        if (newDest) {
-            let derivedRadianRotation = Math.atan2((newDest.y - this.pos.y), (newDest.x - this.pos.x));
-            this.vel.x = Math.cos(derivedRadianRotation) * this.speed;
-            this.vel.y = Math.sin(derivedRadianRotation) * this.speed;
-        } else {
-            // Set our chunk to our dest chunk
-            this.chunk = this.destChunk;
-            this.pos = this.path[this.pathIdx - 1];
-            this.path = [];
-            this.chooseState();
-            this.vel = {x: 0, y: 0};
-        }
+    if (this.timeWaited > this.maxWalkDirTime) {
+        this.determineNewVelocity();
+    } else if (this.timeWaited > this.maxWaitTime) {
+        this.chooseState();
+        return;
     }
+
 
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
@@ -311,115 +304,54 @@ civProto.chooseState = function() {
     console.log('Civilian choosing state');
     let randState = Math.random();
 
+    this.maxWaitTime = 7000 + Math.floor(Math.random() * 6000);
     if (randState < .25) {
         this.timeWaited = 0;
-        this.maxWaitTime = 7000 + Math.floor(Math.random() * 6000);
         this.state = CIV_STATES.STATIC;
     } else if (randState >= .25) {
-        this.dest = this.determineNewDest();
-        this.path = this.determinePath();
-        this.pathIdx = 0;
+        this.velocity = this.determineNewVelocity();
+        this.timeWaited = 0;
         this.state = CIV_STATES.WALKING;
     }
 }
 
-civProto.shouldUpdatePath = function() {
-    // return getDist(this.pos, this.currentDest) < 2;
-    return this.path.length === 0;
+civProto.getGridXY = function() {
+    let adjustedX = Math.floor(this.pos.x / A_STAR_GRID_INTERVAL);
+    let adjustedY = Math.floor(this.pos.y / A_STAR_GRID_INTERVAL);
+    return {x: adjustedX, y: adjustedY};
 }
 
-civProto.isAtDest = function() {
-    return getDist(this.pos, this.path[this.pathIdx]) < 1;
+civProto.determineNewVelocity = function() {
+    this.maxWalkDirTime = 500 + Math.floor(Math.random() * 500);
+    let xy = this.getGridXY();
+    // console.log(xy);
+    let possibleDirections = this.findNeighbours(xy.adjustedX, xy.adjustedY);
+    // console.log(possibleDirections);
+    this.dir = getRandomEntryInArr(possibleDirections);
 }
 
-civProto.heuristic = function(end, node) {
-    dx = abs(end.x - node.x);
-    dy = abs(end.y - node.y);
-    return 1 * (dx + dy) + (1 - 2 * 1) * min(dx, dy)
-}
-
-civProto.determineNewDest = function () {
-    console.log('Determining destination');
-    let bOverlap = true;
-    let randDestX, randDestY, xidx, yidx;
-    // full chunk to left and right
-    let xSliceAmt = X_INTERVALS_PER_CHUNK;
-    let ySliceAmt = Y_INTERVALS_PER_CHUNK;
-    let xArrStart = this.chunk.x - xSliceAmt * 2;
-    let yArrStart = this.chunk.y - ySliceAmt * 2;
-    let xindices = [], yindices = [];
-
-    for(let i = xArrStart; i < this.chunk.x - xSliceAmt; i++) {
-        if (i > 0 && i < BUILD_X_OPTS.length - 1) xindices.push(i);
-    }
-    if (xindices.length === 0) xindices.push(this.chunk.x);
-    for(let i = yArrStart; i < this.chunk.y - ySliceAmt; i++) {
-        if (i > 0 && i < BUILD_Y_OPTS.length - 1) yindices.push(i);
-    }
-    if (yindices.length === 0) yindices.push(this.chunk.y);
-
-    let count = 0;
-    while (bOverlap) {
-        count++;
-        xidx = getRandomEntryInArr(xindices);
-        yidx = getRandomEntryInArr(yindices);
-        randDestX = BUILD_X_OPTS[xidx];
-        randDestY = BUILD_Y_OPTS[yidx];
-
-        bOverlap = this.obstacles.some(b => {
-            let hb = b.getHitbox();
-            hb.w = hb.w * 1.25;
-            hb.h = hb.h * 1.25;
-            let destHB = generateHitbox({x: randDestX, y: randDestY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT})
-            return hasOverlap(hb, destHB);
-        });
-
-        bOverlap = bOverlap || getDist(this.pos, {x: randDestX, y: randDestY}) < 25;
-        if (count % 10 === 0) {
-            console.log('determined dest ' + count + ' times');
-            if (count > 100) {
-                console.log(randDestX);
-                console.log(randDestY);
-                break;
-            }
-        }
-    }
-    // normalize chunk over missing data
-    this.destChunk = {
-        x: xidx,
-        y: yidx
-    };
-    return {x: randDestX, y: randDestY};
-}
-
-/** Astar methods */
-civProto.DiagonalDistance = function(Point, Goal)
-{	// diagonal movement - assumes diag dist is 1, same as cardinals
-    return max(abs(Point.x - Goal.x), abs(Point.y - Goal.y));
-}
-
-civProto.Neighbours = function(x, y)
+civProto.findNeighbours = function(x, y)
 {
-    var	N = y - aStarGridInterval,
-    S = y + aStarGridInterval,
-    E = x + aStarGridInterval,
-    W = x - aStarGridInterval,
-    myN = N > -aStarGridInterval && this.canWalkHere(x, N, this.obstacles),
-    myS = S < worldHeight && this.canWalkHere(x, S, this.obstacles),
-    myE = E < worldWidth && this.canWalkHere(E, y, this.obstacles),
-    myW = W > -aStarGridInterval && this.canWalkHere(W, y, this.obstacles),
+    var	N = y - A_STAR_GRID_INTERVAL,
+    S = y + A_STAR_GRID_INTERVAL,
+    E = x + A_STAR_GRID_INTERVAL,
+    W = x - A_STAR_GRID_INTERVAL,
+    myN = N > -A_STAR_GRID_INTERVAL && this.canWalkHere(x, N, this.grid),
+    myS = S < worldHeight && this.canWalkHere(x, S, this.grid),
+    myE = E < worldWidth && this.canWalkHere(E, y, this.grid),
+    myW = W > -A_STAR_GRID_INTERVAL && this.canWalkHere(W, y, this.grid),
     result = [];
 
     if(myN)
-    result.push({x:x, y:N});
+    result.push(DIR_N);
     if(myE)
-    result.push({x:E, y:y});
+    result.push(DIR_E);
     if(myS)
-    result.push({x:x, y:S});
+    result.push(DIR_S);
     if(myW)
-    result.push({x:W, y:y});
+    result.push(DIR_W);
 
-    this.findNeighbours(myN, myS, myE, myW, N, S, E, W, result, this.obstacles);
+    this.DiagonalNeighbours(myN, myS, myE, myW, N, S, E, W, result, this.grid);
 
     return result;
 }
@@ -433,104 +365,25 @@ civProto.DiagonalNeighbours = function(myN, myS, myE, myW, N, S, E, W, result)
 {
     if(myN)
     {
-        if(myE && this.canWalkHere(E, N, this.obstacles))
-        result.push({x:E, y:N});
-        if(myW && this.canWalkHere(W, N, this.obstacles))
-        result.push({x:W, y:N});
+        if(myE && this.canWalkHere(E, N, this.grid))
+        result.push(DIR_NE);
+        if(myW && this.canWalkHere(W, N, this.grid))
+        result.push(DIR_NW);
     }
     if(myS)
     {
-        if(myE && this.canWalkHere(E, S, this.obstacles))
-        result.push({x:E, y:S});
-        if(myW && this.canWalkHere(W, S, this.obstacles))
-        result.push({x:W, y:S});
+        if(myE && this.canWalkHere(E, S, this.grid))
+        result.push(DIR_SE);
+        if(myW && this.canWalkHere(W, S, this.grid))
+        result.push(DIR_SW);
     }
 }
 
-civProto.determinePath = function() {
-    var pathStart = this.pos;
-    var pathEnd = this.dest;
-	// the world data are integers:
-	// anything higher than this number is considered blocked
-	// this is handy is you use numbered sprites, more than one
-	// of which is walkable road, grass, mud, etc
-	var maxWalkableTileNum = 0;
-	// keep track of the world dimensions
-	// Note that this A-star implementation expects the world array to be square:
-	// it must have equal height and width. If your game world is rectangular,
-    var	mypathStart = Node(null, {x:pathStart.x, y:pathStart.y});
-    var mypathEnd = Node(null, {x:pathEnd.x, y:pathEnd.y});
-    // create an array that will contain all world cells
-    var AStar = new Array(worldSize);
-    // list of currently open Nodes
-    var Open = [mypathStart];
-    // list of closed Nodes
-    var Closed = [];
-    // list of the final output array
-    var result = [];
-    // reference to a Node (that is nearby)
-    var myNeighbours;
-    // reference to a Node (that we are considering now)
-    var myNode;
-    // reference to a Node (that starts a path in question)
-    var myPath;
-    // temp integer variables used in the calculations
-    var length, max, min, i, j;
-    // iterate through the open list until none are left
-    while(length = Open.length)
-    {
-        max = worldSize;
-        min = -1;
-        for(i = 0; i < length; i++)
-        {
-            if(Open[i].f < max)
-            {
-                max = Open[i].f;
-                min = i;
-            }
-        }
-        // grab the next node and remove it from Open array
-        myNode = Open.splice(min, 1)[0];
-        // is it the destination node?
-        if(myNode.value === mypathEnd.value)
-        {
-            myPath = Closed[Closed.push(myNode) - 1];
-            do
-            {
-                result.push({x: myPath.x, y: myPath.y});
-            }
-            while (myPath = myPath.Parent);
-            // clear the working arrays
-            AStar = Closed = Open = [];
-            // we want to return start to finish
-            result.reverse();
-        }
-        else // not the destination
-        {
-            // find which nearby nodes are walkable
-            myNeighbours = this.Neighbours(myNode.x, myNode.y, this.obstacles);
-            // test each one that hasn't been tried already
-            for(i = 0, j = myNeighbours.length; i < j; i++)
-            {
-                myPath = Node(myNode, myNeighbours[i]);
-                if (!AStar[myPath.value])
-                {
-                    // estimated cost of this particular route so far
-                    myPath.g = myNode.g + this.distanceFunction(myNeighbours[i], myNode);
-                    // estimated cost of entire guessed route to the destination
-                    myPath.f = myPath.g + this.distanceFunction(myNeighbours[i], mypathEnd);
-                    // remember this new path for testing above
-                    Open.push(myPath);
-                    // mark this node in the world graph as visited
-                    AStar[myPath.value] = true;
-                }
-            }
-            // remember this route as having no more untested options
-            Closed.push(myNode);
-        }
-    } // keep iterating until until the Open list is empty
-    return result;
+civProto.canWalkHere = function(x, y, grid) {
+    return grid[x/A_STAR_GRID_INTERVAL][y/A_STAR_GRID_INTERVAL].cost === 0;
 }
+
+/** End astar methods */
 
 Civilian.draw = function(pos, size) {
     ctx.save();
@@ -545,13 +398,6 @@ Civilian.draw = function(pos, size) {
 
 civProto.getHitbox = function() {
     return generateHitbox(this.pos, this.size);
-}
-
-civProto.canWalkHere = function(x, y) {
-    let hb = generateHitbox({x: x, y: y}, {w: this.size.w, h: this.size.h});
-    return !this.obstacles.some(b => {
-        return hasOverlap(hb, b.getHitbox());
-    });
 }
 
 function Node(Parent, Point)
