@@ -32,7 +32,7 @@ const PLAYER_ROLE_IDX = {
     'DICTATOR': 2
 };
 
-const TICK_TIME = 1000/60;
+const TICK_TIME = 10;//1000/60;
 const MAX_DROPPED_ARROWS = 6;
 const MAX_DROPPED_MESSAGES = 3;
 const PLAYER_WIDTH = 15;
@@ -151,7 +151,7 @@ GroundArrow.draw = function(pos, rotation, opacity) {
 
 function Bullet(x, y, rotation, removeCB) {
     this.id = genId();
-    this.speed = 10;
+    this.speed = 16;
     this.pos = {x: x, y: y};
     this.origPos = {x: x, y: y};
     this.rotation = rotation;
@@ -164,8 +164,8 @@ function Bullet(x, y, rotation, removeCB) {
 }
 
 Bullet.prototype.update = function(t) {
-    this.pos.x += this.vel.x;
-    this.pos.y += this.vel.y;
+    this.pos.x += this.vel.x * (TICK_TIME/t);
+    this.pos.y += this.vel.y * (TICK_TIME/t);
 
     let distFromStart = getDist(this.pos, this.origPos);
     if (distFromStart > 500) {

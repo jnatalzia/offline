@@ -228,10 +228,10 @@ class GameRoom {
         this.checkCollisions();
 
 		this.bullets.forEach(b => {
-			b.update();
+			b.update(timeDiff);
 		});
 		this.arrows.forEach(a => {
-			a.update();
+			a.update(timeDiff);
         });
         this.civilians.forEach(c => {
 			c.update(timeDiff);
