@@ -42,7 +42,7 @@ function removeUser(user) {
 }
 
 /** Room Handling */
-function findRoom(user) {
+function findRoom(user, cb) {
 	console.log('Finding room for user: ' + user.id);
 	let roomIds = Object.keys(ROOMS);
 	for (let i = 0; i < roomIds.length; i++) {
@@ -54,7 +54,8 @@ function findRoom(user) {
 	}
 
 	let rid = createRoom();
-    ROOMS[rid].addUser(user);
+	ROOMS[rid].addUser(user);
+	cb && cb();
 }
 
 function createRoom() {
@@ -82,12 +83,10 @@ class GameRoom {
 		this.civilians = [];
 		this.civiliansKilled = 0;
 		this.prevTime = Date.now();
-        // TEST DATA
 		for (let i = 0; i < 20; i++) {
 			let civ = this.genCivilian();
             this.civilians.push(civ);
         }
-        this.setupUpdate();
 	}
 
 	genCivilian() {
@@ -126,7 +125,20 @@ class GameRoom {
             map.push(b);
 		}
         return {buildings: map};
-    }
+	}
+
+	getRandomPos(size) {
+		let randX, randY, bOverlap = true;
+		while (bOverlap) {
+			randX = getRandomEntryInArr(BUILD_X_OPTS);
+			randY = getRandomEntryInArr(BUILD_Y_OPTS);
+			let hb = generateHitbox({x: randX, y: randY}, {w:size.w, h: size.h})
+			bOverlap = this.buildings.some(b => {
+				return hasOverlap(hb, b.getHitbox());
+			});
+		}
+		return {x: randX, y: randY};
+	}
 
     buildingOverlapsCurrent(b, map) {
         for (let eb = 0; eb < map.length; eb++) {
@@ -195,12 +207,23 @@ class GameRoom {
 
 	setupUpdate() {
 		const that = this;
+		let numGreaterThan50 = 0;
+
+		// Start AI loop
+		this.civilians.forEach(c => c.begin());
+
+		// Reset Prev Time
+		this.prevTime = Date.now();
+
         this.updateInterval = setInterval(function() {
 			const time = Date.now();
 			that.update();
 			const updateTime = Date.now() - time;
 			if (updateTime > 50) {
-				console.log('greater than 50ms update');
+				numGreaterThan50++;
+				if (numGreaterThan50 % 10 === 0) {
+					console.log('10 greater than 50ms updates');
+				}
 			}
 		}, TICK_TIME);
         // this.update();
@@ -327,6 +350,7 @@ class GameRoom {
 		u.room = this;
 		let type = this.selectPlayerType();
 		u.type = type;
+		u.pos = this.getRandomPos({w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
 		console.log('User of type: ' + type + 'added.')
 		this.takenRoles[PLAYER_ROLE_IDX[type]] = 1;
 
@@ -337,6 +361,18 @@ class GameRoom {
 			this.users[uid].socket.emit('player-added', { id: u.id, type: type, pos: u.pos });
 		});
 		this.users[u.id] = u;
+
+		if (!this.roomHasSpace()) {
+			console.log('Room full and ready');
+			this.setupUpdate();
+			Object.keys(this.users).forEach(uid => {
+				let usr = this.users[uid];
+				usr.socket.emit('set-state', {state: GAME_STATES.STARTING});
+				setTimeout(() => {
+					usr.start();
+				}, 3000)
+			});
+		}
 	}
 
 	numUsers() {
@@ -365,11 +401,18 @@ class GameRoom {
 			this.remove();
 			console.log('Removing room w/ id: ' + this.id);
 			return;
+		} else {
+			console.log('Finding new user to replace');
+			clearInterval(this.updateInterval);
+			Object.keys(this.users).forEach(uid => {
+				this.users[uid].socket.emit('set-state', { state: GAME_STATES.CHOOSING_ROOM });
+			});
 		}
 	}
 
 	remove() {
 		delete ROOMS[this.id];
+		// Finding new room for players
 		clearInterval(this.updateInterval);
 	}
 
@@ -396,8 +439,12 @@ class User {
 		this.pos = {x: -500, y: -500};
 		this.type = type;
 		this.setupSocketHandlers();
-		this.socket.emit('set-id', {id: this.id});
+		this.socket.emit('set-state', {
+			state: GAME_STATES.CHOOSING_ROOM
+		});
 		findRoom(this);
+		this.socket.emit('set-start', {id: this.id, pos: this.pos});
+		this.emitOtherPlayers();
 	}
 
 	emitOtherPlayers() {
@@ -414,8 +461,6 @@ class User {
 			this.pos = data.playerPos;
 		});
 		this.socket.on('ready', (data) => {
-			this.pos = data.pos;
-			this.emitOtherPlayers();
 			this.ready = true;
 		});
 		this.socket.on('drop-arrow', function(data) {
@@ -433,8 +478,8 @@ class User {
 	}
 
 	start() {
-		console.log('Starting game in room w/ id: ' + room.id);
-		this.socket.emit("start");
+		console.log('Starting game in room w/ id: ' + this.room.id);
+		this.socket.emit('game-start');
 	}
 
 	/**
@@ -442,7 +487,6 @@ class User {
 	 */
 	end() {
 		console.log('Ending game in room w/ id: ' + room.id);
-		this.socket.emit("end");
 	}
 
 }

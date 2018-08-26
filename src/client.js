@@ -55,6 +55,17 @@ function getClassFromType(type) {
     }
 }
 
+function getHumanReadableFromType(type) {
+    switch(type) {
+        case PLAYER_COURIER:
+            return 'Courier';
+        case PLAYER_DICTATOR:
+            return 'Dictator';
+        case PLAYER_MESSAGE_DROPPER:
+            return 'Message Dropper';
+    }
+}
+
 /** Game State */
 let mousePos = { x: 0, y: 0 };
 let player;
@@ -62,6 +73,7 @@ let globalGameGoal = 'The Courier has not yet picked up the message.'
 let killedCivilians = 0;
 let globalTime = 0;
 let userID;
+let currentGameState = GAME_STATES.LOADING;
 
 function addMessage(pos) {
     // DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
@@ -604,18 +616,30 @@ function loadMap() {
 function update(time) {
     let deltaTime = time - globalTime;
 
-    player.update(deltaTime);
-
-    // Check collisions
-    // checkCollisions();
-
-    draw();
+    switch(currentGameState) {
+        case GAME_STATES.LOADING:
+            break;
+        case GAME_STATES.PLAYING:
+            player.update(deltaTime);
+            drawPlaying();
+            break;
+        case GAME_STATES.CHOOSING_ROOM:
+            chooseRoomUpdate();
+            break;
+        case GAME_STATES.STARTING:
+            drawPregame();
+            break;
+    }
     window.requestAnimationFrame(update);
     globalTime = time;
 }
 
+function chooseRoomUpdate() {
+    drawChooseScreen();
+}
+
 /** Main Draw Loop */
-function draw() {
+function drawPlaying() {
     clearBoard();
     drawBackground();
     player.draw();
@@ -625,6 +649,32 @@ function drawUI() {
     drawCursor();
     player.drawUI();
 }
+function drawChooseScreen() {
+    clearBoard();
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'black';
+    ctx.font = 'bold 24px Arial';
+    let plysLeft = 2 - EXTERNAL_PLAYERS.length;
+    if (player.type) ctx.fillText(`You are the ${getHumanReadableFromType(player.type)}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
+    ctx.fillText(`Waiting for ${plysLeft} more player${plysLeft === 1 ? '' : 's'}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+
+    ctx.restore();
+}
+
+function drawPregame() {
+    clearBoard();
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'black';
+    ctx.font = 'bold 24px Arial';
+    ctx.fillText(`All players loaded. Game starting in 3 seconds.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+
+    ctx.restore();
+}
+
 function clearBoard() {
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -703,15 +753,23 @@ function drawCivilians(civs) {
 }
 
 /** Socket listeners */
-socket.on('set-id', function(data) {
-    console.log("SET ID");
+socket.on('set-start', function(data) {
     userID = data.id;
+    player.pos = data.pos;
+    socket.emit('ready', {
+        pos: {x: player.pos.x, y: player.pos.y}
+    });
+});
+
+socket.on('game-start', function(data) {
+    console.log("Game start");
+    currentGameState = GAME_STATES.PLAYING;
+    setInterval(updateServer, TICK_TIME);
 });
 
 socket.on('set-game-info', function(data) {
     const players = data.players.filter(p => p.id !== userID);
     players.forEach(p => {
-        console.log('adding player with id: ' + p.id);
         const type = getClassFromType(p.type);
         EXTERNAL_PLAYER_INDICES[p.id] = EXTERNAL_PLAYERS.length;
         EXTERNAL_PLAYERS.push(new type(p.pos.x, p.pos.y, true));
@@ -735,6 +793,10 @@ socket.on('player-removed', function(data) {
     delete EXTERNAL_PLAYER_INDICES[data.id];
 });
 
+socket.on('set-state', function(data) {
+    currentGameState = data.state;
+});
+
 /** Send client updates to server */
 function updateServer() {
     socket.emit('client-update', {
@@ -745,15 +807,9 @@ function updateServer() {
 /** Start game */
 loadMap();
 
-socket.emit('ready', {
-    pos: {x: 500, y: 500}
-});
-
 socket.on('set-type', function(d) {
-    console.log('SETTING TYPE', d);
     const type = getClassFromType(d.type);
-    player = new type(500, 500);
-
-    update();
-    setInterval(updateServer, TICK_TIME);
+    player = new type(-1, -1);
 });
+
+update();

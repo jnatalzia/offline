@@ -5,6 +5,13 @@ const MAP_HEIGHT = 3000;
 
 const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
+const GAME_STATES = {
+    LOADING: 0,
+    PLAYING: 1,
+    CHOOSING_ROOM: 2,
+    STARTING: 3
+};
+
 const CIV_VELOCITIES = [1.5, .5, 0, 1, 1.75, 1.25, .75, .25].map(r => {
     let rot = r * Math.PI;
     return {x: Math.cos(rot), y: Math.sin(rot)};
@@ -250,19 +257,18 @@ function Civilian(x, y, buildings, removeCB) {
     this.id = genId();
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
-    this.currentPath = [];
     this.vel = {x: 0, y: 0};
     this.speed = 1.25;
     this.remove = removeCB;
-    this.path = [];
-    this.pathIdx = 0;
     this.timeWaited = 0;
     this.buildings = buildings;
-    this.chooseState();
-    console.log('Instantiated Civ at ' + this.pos.x + ',' + this.pos.y)
 }
 
 let civProto = Civilian.prototype;
+
+civProto.begin = function() {
+    this.chooseState();
+}
 
 civProto.update = function(t) {
     switch (this.state) {
