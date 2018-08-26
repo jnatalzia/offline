@@ -198,8 +198,8 @@ class GameRoom {
 			const time = Date.now();
 			that.update();
 			const updateTime = Date.now() - time;
-			if (updateTime > 100) {
-				console.log('greater than 100ms update');
+			if (updateTime > 50) {
+				console.log('greater than 50ms update');
 			}
 		}, TICK_TIME);
         // this.update();
