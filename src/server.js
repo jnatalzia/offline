@@ -244,7 +244,6 @@ class GameRoom {
 	checkCollisions() {
 		Object.keys(this.users).forEach(k => {
 			let user = this.users[k];
-			this.checkMessageCollisions(user);
 			if (user.type !== PLAYER_DICTATOR) {
 				this.checkDeathCollisions(user);
 			}
@@ -281,17 +280,6 @@ class GameRoom {
 		}
 	}
 
-	checkMessageCollisions(u) {
-		/** refactor me, sends a message EVERYTIME there is an overlap (1 per tick) */
-		for (let m = 0; m < this.messages.length; m++) {
-			let msg = this.messages[m];
-			if (hasOverlap(getPlayerHitbox(u), msg.getHitbox())) {
-				u.socket.emit('message-collision', msg);
-				break;
-			}
-		}
-	}
-
 	checkDeathCollisions(u) {
         let playerHitbox = getPlayerHitbox(u);
 		for (let b = 0; b < this.bullets.length; b++) {
@@ -310,20 +298,16 @@ class GameRoom {
     }
 
 	getUserInfo() {
-		const userKeys = Object.keys(this.users);
-		return userKeys.reduce((acc, currVal) => {
-			let u = this.users[currVal];
-			if (!u.ready) {
-				return acc;
-			}
-
-			acc[currVal] = {
+		let plyKeys = Object.keys(this.users)
+		return plyKeys.map(p => {
+			let u = this.users[p];
+			return {
+				id: u.id,
+				size: u.size,
 				pos: u.pos,
-				type: u.type,
-				id: u.id
-			};
-			return acc;
-		}, {});
+				type: u.type
+			}
+		});
 	}
 
 	/**

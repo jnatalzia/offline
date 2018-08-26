@@ -16,6 +16,7 @@ let FIRED_BULLETS = [];
 let ACTIVE_CIVILIANS = [];
 
 const EXTERNAL_PLAYERS = [];
+const EXTERNAL_PLAYER_INDICES = {};
 
 let map = [];
 
@@ -179,25 +180,25 @@ pp.checkMove = function (hitbox) {
 pp.checkMoveLeft = function(adjSpeed) {
     let topCorner = this.getRectCorner();
     let adjustedHitbox = { x: topCorner.x - adjSpeed, y: topCorner.y, w: this.size.w, h: this.size.h };
-    return this.checkMove(adjustedHitbox);
+    return topCorner.x > 0 && this.checkMove(adjustedHitbox);
 }
 
 pp.checkMoveDown = function(adjSpeed) {
     let topCorner = this.getRectCorner();
     let adjustedHitbox = { x: topCorner.x, y: topCorner.y + adjSpeed, w: this.size.w, h: this.size.h };
-    return this.checkMove(adjustedHitbox);
+    return topCorner.y + this.size.h < MAP_HEIGHT && this.checkMove(adjustedHitbox);
 }
 
 pp.checkMoveUp = function(adjSpeed) {
     let topCorner = this.getRectCorner();
     let adjustedHitbox = { x: topCorner.x, y: topCorner.y - adjSpeed, w: this.size.w, h: this.size.h };
-    return this.checkMove(adjustedHitbox);
+    return topCorner.y > 0 && this.checkMove(adjustedHitbox);
 }
 
 pp.checkMoveRight = function(adjSpeed) {
     let topCorner = this.getRectCorner();
     let adjustedHitbox = { x: topCorner.x + adjSpeed, y: topCorner.y, w: this.size.w, h: this.size.h };
-    return this.checkMove(adjustedHitbox);
+    return topCorner.x + this.size.w < MAP_WIDTH && this.checkMove(adjustedHitbox);
 }
 
 pp.draw = function() {
@@ -401,6 +402,14 @@ cp.update = function(t) {
     this.super_.prototype.update.apply(this, arguments);
     if (!KEY_CHECKER[32]) {
         this.justPickedUp = false;
+    } else {
+        for (let m = 0; m < DROPPED_MESSAGES.length; m++) {
+			let msg = DROPPED_MESSAGES[m];
+			if (hasOverlap(this.getHitbox(), generateHitbox(msg.pos, msg.size))) {
+				this.canPickUp(msg);
+				break;
+			}
+		}
     }
 }
 
@@ -429,6 +438,14 @@ dp.update = function(t) {
     this.super_.prototype.update.apply(this, arguments);
     if (!KEY_CHECKER[32]) {
         this.justPickedUp = false;
+    } else {
+        for (let m = 0; m < DROPPED_MESSAGES.length; m++) {
+			let msg = DROPPED_MESSAGES[m];
+			if (hasOverlap(this.getHitbox(), generateHitbox(msg.pos, msg.size))) {
+				this.canPickUp(msg);
+				break;
+			}
+		}
     }
 }
 
@@ -459,12 +476,9 @@ let globalTime = 0;
 let userID;
 
 function updateGameStateFromServer(data) {
-    let players = data.players;
-    delete players[userID];
-    let playerKeys = Object.keys(players);
-    playerKeys.forEach(pKey => {
-        let p = players[pKey];
-        let internalP = EXTERNAL_PLAYERS[pKey];
+    let players = data.players.filter(p => p.id !== userID);
+    players.forEach(p => {
+        let internalP = EXTERNAL_PLAYERS[EXTERNAL_PLAYER_INDICES[p.id]];
         internalP.pos = p.pos;
     });
     /** Update arrows */
@@ -590,13 +604,12 @@ socket.on('set-id', function(data) {
 });
 
 socket.on('set-game-info', function(data) {
-    delete data.players[userID];
-    const playerKeys = Object.keys(data.players);
-    playerKeys.forEach(i => {
-        let p = data.players[i];
+    const players = data.players.filter(p => p.id !== userID);
+    players.forEach(p => {
         console.log('adding player with id: ' + p.id);
         const type = getClassFromType(p.type);
-        EXTERNAL_PLAYERS[p.id] = new type(p.pos.x, p.pos.y, true);
+        EXTERNAL_PLAYER_INDICES[p.id] = EXTERNAL_PLAYERS.length;
+        EXTERNAL_PLAYERS.push(new type(p.pos.x, p.pos.y, true));
     });
     map = data.buildings;
 });
@@ -607,11 +620,14 @@ socket.on('game-update', function(data) {
 
 socket.on('player-added', function(data) {
     const type = getClassFromType(data.type);
-    EXTERNAL_PLAYERS[data.id] = new type(data.pos.x, data.pos.y, true);
+    EXTERNAL_PLAYER_INDICES[data.id] = EXTERNAL_PLAYERS.length;
+    EXTERNAL_PLAYERS.push(new type(data.pos.x, data.pos.y, true));
 });
 
 socket.on('player-removed', function(data) {
-    delete EXTERNAL_PLAYERS[data.id];
+    let playerIdx = EXTERNAL_PLAYER_INDICES[data.id];
+    EXTERNAL_PLAYERS.splice(playerIdx, 1);
+    delete EXTERNAL_PLAYER_INDICES[data.id];
 });
 
 /** Send client updates to server */

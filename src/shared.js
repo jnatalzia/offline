@@ -303,8 +303,8 @@ civProto.updateWalk = function(t) {
         return;
     }
 
-    this.pos.x += this.vel.x;
-    this.pos.y += this.vel.y;
+    this.pos.x += (this.vel.x * (TICK_TIME/t));
+    this.pos.y += (this.vel.y * (TICK_TIME/t));
 }
 
 civProto.chooseState = function() {
