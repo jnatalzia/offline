@@ -80,6 +80,7 @@ class GameRoom {
         let map = this.generateMap();
         this.buildings = map.buildings;
 		this.civilians = [];
+		this.civiliansKilled = 0;
 		this.prevTime = Date.now();
         // TEST DATA
 		for (let i = 0; i < 20; i++) {
@@ -217,7 +218,8 @@ class GameRoom {
 				arrows: this.arrows,
 				bullets: this.bullets,
                 messages: this.messages,
-                civilians: this.civilians
+				civilians: this.civilians,
+				civiliansKilled: this.civiliansKilled
 			});
 		});
 	}
@@ -268,6 +270,7 @@ class GameRoom {
             for (let c = 0; c < this.civilians.length; c++) {
                 let civ = this.civilians[c];
                 if (hasOverlap(bul.getHitbox(), civ.getHitbox())) {
+					this.civiliansKilled++;
                     civ.remove();
                     bul.remove();
                     shouldBreak = true;

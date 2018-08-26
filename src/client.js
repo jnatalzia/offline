@@ -3,7 +3,10 @@ const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 
 const CANVAS_WIDTH = 800;
-const CANVAS_HEIGHT = 600;
+const CANVAS_HEIGHT = 700;
+
+const BOTTOM_UI_HEIGHT = 150;
+const BOTTOM_UI_Y = CANVAS_HEIGHT - BOTTOM_UI_HEIGHT;
 
 const CURSOR_RADIUS = 10;
 
@@ -55,6 +58,10 @@ function getClassFromType(type) {
 /** Game State */
 let mousePos = { x: 0, y: 0 };
 let player;
+let globalGameGoal = 'The Courier has not yet picked up the message.'
+let killedCivilians = 0;
+let globalTime = 0;
+let userID;
 
 function addMessage(pos) {
     // DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
@@ -101,6 +108,11 @@ function Player(x, y, isNotPlayer) {
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
     this.speed = 2;
     this.isPlayer = !isNotPlayer;
+    this.job = 'Do a thing.';
+    this.fillStyle = '#fff';
+    this.controls = [
+        { key: 'WSAD', job: 'Moves the Player' }
+    ]
     if (this.isPlayer) {
         this.addEventHandlers();
     }
@@ -206,7 +218,7 @@ pp.draw = function() {
     ctx.translate(CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
     ctx.beginPath();
     ctx.rect(-this.size.w/2, -this.size.h/2, this.size.w, this.size.h);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = this.fillStyle;
     ctx.strokeStyle = '#111';
     ctx.fill();
     ctx.stroke();
@@ -218,7 +230,7 @@ pp.absoluteDraw = function() {
     ctx.translate(this.pos.x, this.pos.y);
     ctx.beginPath();
     ctx.rect(-this.size.w/2, -this.size.h/2, this.size.w, this.size.h);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = this.fillStyle;
     ctx.strokeStyle = '#111';
     ctx.fill();
     ctx.stroke();
@@ -226,20 +238,78 @@ pp.absoluteDraw = function() {
 }
 
 pp.drawUI = function() {
-    if (this.type) {
-        ctx.fillStyle = 'white';
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1;
-        ctx.font = 'bold 24px Arial';
-        ctx.textAlign = 'right';
-        ctx.fillText("PLAYER TYPE: " + this.type, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 20);
-        ctx.strokeText("PLAYER TYPE: " + this.type, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 20);
-        ctx.textAlign = 'left';
-        let px = this.pos.x.toFixed(2);
-        let py = this.pos.y.toFixed(2);
-        ctx.fillText("PLAYER POS: " + px + "," + py, 10, CANVAS_HEIGHT - 20);
-        ctx.strokeText("PLAYER POS: " + px + "," + py, 10, CANVAS_HEIGHT - 20);
-    }
+    this.drawBottomUI();
+    this.drawTopUI();
+
+    // Top left white box
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.fillRect(0, 0, 120, 55);
+}
+
+pp.drawTopUI = function() {
+    ctx.save();
+    ctx.fillStyle = 'white';
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.moveTo(CANVAS_WIDTH/6, 0);
+    ctx.lineTo(CANVAS_WIDTH/6, 50);
+    ctx.lineTo(CANVAS_WIDTH - CANVAS_WIDTH/6, 50);
+    ctx.lineTo(CANVAS_WIDTH - CANVAS_WIDTH/6, 0);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fill();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'black';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText(globalGameGoal, CANVAS_WIDTH/2, 25);
+
+    ctx.restore();
+}
+
+pp.drawBottomUI = function () {
+    ctx.save();
+    ctx.fillStyle = 'white';
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+
+    ctx.fillRect(0, BOTTOM_UI_Y, CANVAS_WIDTH, BOTTOM_UI_HEIGHT);
+    ctx.beginPath();
+    ctx.moveTo(0, BOTTOM_UI_Y);
+    ctx.lineTo(CANVAS_WIDTH, BOTTOM_UI_Y);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(CANVAS_WIDTH/6, BOTTOM_UI_Y);
+    ctx.lineTo(CANVAS_WIDTH/6 - 15, BOTTOM_UI_Y + 75);
+    ctx.lineTo(CANVAS_WIDTH - CANVAS_WIDTH/6 - 15, BOTTOM_UI_Y + 75);
+    ctx.lineTo(CANVAS_WIDTH - CANVAS_WIDTH/6, BOTTOM_UI_Y);
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'black';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText(this.job, CANVAS_WIDTH/2, BOTTOM_UI_Y + 75/2);
+
+    ctx.restore();
+
+    this.drawControls();
+}
+
+pp.drawControls = function() {
+    let controlsString = this.controls.map(c => {
+        return c.key + ': ' + c.job;
+    }).join(' | ');
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'black';
+    ctx.font = 'bold 12px Arial';
+    ctx.fillText(controlsString, CANVAS_WIDTH/2, BOTTOM_UI_Y + 75 * 1.5);
 }
 
 pp.getHitbox = function() {
@@ -261,6 +331,12 @@ function MsgDropper(x, y) {
         timeDropped: 0
     };
     this.timeToDrop = 1000;
+    this.job = 'Lead the Courier to a Message.';
+    this.controls = this.controls.concat([
+        {key: 'Space', job: 'Hold to Drop a Message'},
+        {key: 'Arrow Keys', job: 'Drops an Arrow to Direct the Courier'},
+        {key: 'L Shift', job: 'Sprint'}
+    ]);
 }
 inherits(MsgDropper, Player);
 let mp = MsgDropper.prototype;
@@ -371,11 +447,18 @@ mp.drawUI = function() {
     this.super_.prototype.drawUI.apply(this, arguments);
 
     ctx.save();
+
     ctx.strokeStyle = '#00348F';
     ctx.fillStyle = '#00348F';
     ctx.lineWidth = 2;
     ctx.fillRect(10, 10, 100 * (this.msgDropState.timeDropped / this.timeToDrop), 20);
     ctx.strokeRect(10, 10, 100, 20);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'black';
+    ctx.font = 'bold 12px Arial';
+    ctx.fillText(`${DROPPED_MESSAGES.length}/${MAX_DROPPED_MESSAGES} dropped.`, 100/2 + 10, 40);
+
     ctx.restore();
 }
 
@@ -384,6 +467,10 @@ function Courier(x, y) {
 
     this.type = PLAYER_COURIER;
     this.nearbyMessages = [];
+    this.job = 'Find a Message and Deliver it to the Homebase. Blend in.';
+    this.controls = this.controls.concat([
+        {key: 'Space', job: 'Press to Pick up a Message'}
+    ]);
 }
 
 inherits(Courier, Player);
@@ -428,6 +515,13 @@ cp.getAdjustedSpeed = function(t) {
 function Dictator(x, y, isNotPlayer) {
     this.super_.apply(this, arguments);
     this.type = PLAYER_DICTATOR;
+    this.job = 'Find and Eliminate the Courier. Do not shoot more than 1 civilian.';
+    this.fillStyle = 'red';
+    this.controls = this.controls.concat([
+        {key: 'Space', job: 'Press to Destroy up a Message'},
+        {key: 'Click', job: 'Shoot'},
+        {key: 'L Shift', job: 'Sprint'}
+    ]);
 }
 
 inherits(Dictator, Player);
@@ -471,9 +565,18 @@ dp.fireBullet = function() {
     addBullet(this.pos, derivedRadianRotation, this);
 }
 
-/** Game State */
-let globalTime = 0;
-let userID;
+dp.drawUI = function() {
+    this.super_.prototype.drawUI.apply(this, arguments);
+
+    ctx.save();
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = killedCivilians > 0 ? 'red': 'black';
+    ctx.font = 'bold 12px Arial';
+    ctx.fillText(`${killedCivilians}/${CIVILIAN_KILL_CAP} Civilians Killed.`, 100/2 + 10, 30);
+
+    ctx.restore();
+}
 
 function updateGameStateFromServer(data) {
     let players = data.players.filter(p => p.id !== userID);
@@ -489,6 +592,8 @@ function updateGameStateFromServer(data) {
     DROPPED_MESSAGES = data.messages;
     /** Update Civilians */
     ACTIVE_CIVILIANS = data.civilians;
+    /** Update civies killed stats */
+    killedCivilians = data.civiliansKilled;
 }
 
 /** Bootup */
