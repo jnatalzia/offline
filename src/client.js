@@ -106,7 +106,7 @@ function Extendable() {}
 function Player(x, y, isNotPlayer) {
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
-    this.speed = 2;
+    this.speed = 1.25;
     this.isPlayer = !isNotPlayer;
     this.job = 'Do a thing.';
     this.fillStyle = '#fff';
@@ -131,7 +131,7 @@ pp.die = function() {
 }
 
 pp.getAdjustedSpeed = function(t) {
-    return (KEY_CHECKER[16] ? this.speed * 1.6 : this.speed) * (16/t);
+    return (KEY_CHECKER[16] ? this.speed * 1.6 : this.speed);
 }
 
 pp.update = function(t) {
@@ -163,8 +163,8 @@ pp.update = function(t) {
         else if (e) rotation = 0;
 
         rotation *= Math.PI;
-        vel.x = Math.cos(rotation) * adjustedSpeed;
-        vel.y = Math.sin(rotation) * adjustedSpeed;
+        vel.x = Math.cos(rotation) * adjustedSpeed * (t/TICK_TIME);
+        vel.y = Math.sin(rotation) * adjustedSpeed * (t/TICK_TIME);
     }
 
     this.pos.x += vel.x;
@@ -455,7 +455,7 @@ mp.drawUI = function() {
     ctx.strokeRect(10, 10, 100, 20);
 
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'black';
+    ctx.fillStyle = DROPPED_MESSAGES.length === MAX_DROPPED_MESSAGES ? 'red' : 'black';
     ctx.font = 'bold 12px Arial';
     ctx.fillText(`${DROPPED_MESSAGES.length}/${MAX_DROPPED_MESSAGES} dropped.`, 100/2 + 10, 40);
 
@@ -509,7 +509,7 @@ cp.canPickUp = function(msg) {
 }
 
 cp.getAdjustedSpeed = function(t) {
-    return this.speed * (16/t);
+    return this.speed;
 }
 
 function Dictator(x, y, isNotPlayer) {

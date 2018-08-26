@@ -152,7 +152,7 @@ GroundArrow.draw = function(pos, rotation, opacity) {
 
 function Bullet(x, y, rotation, removeCB) {
     this.id = genId();
-    this.speed = 16;
+    this.speed = 8;
     this.pos = {x: x, y: y};
     this.origPos = {x: x, y: y};
     this.rotation = rotation;
@@ -165,8 +165,8 @@ function Bullet(x, y, rotation, removeCB) {
 }
 
 Bullet.prototype.update = function(t) {
-    this.pos.x += this.vel.x * (TICK_TIME/t);
-    this.pos.y += this.vel.y * (TICK_TIME/t);
+    this.pos.x += this.vel.x * (t/TICK_TIME);
+    this.pos.y += this.vel.y * (t/TICK_TIME);
 
     let distFromStart = getDist(this.pos, this.origPos);
     if (distFromStart > 500) {
@@ -252,7 +252,7 @@ function Civilian(x, y, buildings, removeCB) {
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
     this.currentPath = [];
     this.vel = {x: 0, y: 0};
-    this.speed = 2;
+    this.speed = 1.25;
     this.remove = removeCB;
     this.path = [];
     this.pathIdx = 0;
@@ -304,8 +304,8 @@ civProto.updateWalk = function(t) {
         return;
     }
 
-    this.pos.x += (this.vel.x * (TICK_TIME/t));
-    this.pos.y += (this.vel.y * (TICK_TIME/t));
+    this.pos.x += (this.vel.x * (t/TICK_TIME));
+    this.pos.y += (this.vel.y * (t/TICK_TIME));
 }
 
 civProto.chooseState = function() {
