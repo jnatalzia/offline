@@ -10,18 +10,18 @@ const ROOMS = {
 };
 
 /** Server constants */
-let BUILDING_WIDTHS = [0, 1, 2, 3, 4, 5, 6].map(n => 100 + (n*A_STAR_GRID_INTERVAL));
+let BUILDING_WIDTHS = [0, 1, 2, 3, 4, 5, 6].map(n => 100 + (n*GRID_INTERVAL));
 let MAX_BUILDING_WIDTH = BUILDING_WIDTHS[BUILDING_WIDTHS.length - 1];
 
 let BUILD_X_OPTS = [];
-let adjustedWidth = MAP_WIDTH - MAX_BUILDING_WIDTH / 2;
-for (let i = 0; i < MAP_WIDTH; i += A_STAR_GRID_INTERVAL) {
-    BUILD_X_OPTS.push(i + A_STAR_GRID_INTERVAL);
+let adjustedWidth = Math.floor(MAP_WIDTH - MAX_BUILDING_WIDTH / 2);
+for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedWidth; i += GRID_INTERVAL) {
+    BUILD_X_OPTS.push(i);
 }
-let adjustedHeight = MAP_HEIGHT - MAX_BUILDING_WIDTH / 2;
+let adjustedHeight = Math.floor(MAP_HEIGHT - MAX_BUILDING_WIDTH / 2);
 let BUILD_Y_OPTS = [];
-for (let i = 0; i < MAP_HEIGHT; i += A_STAR_GRID_INTERVAL) {
-    BUILD_Y_OPTS.push(i + A_STAR_GRID_INTERVAL);
+for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedHeight; i += GRID_INTERVAL) {
+    BUILD_Y_OPTS.push(i);
 }
 
 const X_CHUNKS = 4;
@@ -79,11 +79,10 @@ class GameRoom {
         this.messages = [];
         let map = this.generateMap();
         this.buildings = map.buildings;
-        this.grid = map.grid;
 		this.civilians = [];
 		this.prevTime = Date.now();
         // TEST DATA
-		for (let i = 0; i < 10; i++) {
+		for (let i = 0; i < 1; i++) {
             console.log('Generating Civilian');
 			let civ = this.genCivilian();
             this.civilians.push(civ);
@@ -101,58 +100,39 @@ class GameRoom {
 		while (bOverlap) {
             count++;
             randX = getRandomEntryInArr(BUILD_X_OPTS);
-            randY = getRandomEntryInArr(BUILD_Y_OPTS);
-            let civHB = generateHitbox({x: randX, y: randY}, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT});
-            if (this.grid[randX/A_STAR_GRID_INTERVAL] === undefined || this.grid[randX/A_STAR_GRID_INTERVAL][randY/A_STAR_GRID_INTERVAL] === undefined) {
-                console.log(this.grid[randX/A_STAR_GRID_INTERVAL]);
-                console.log(randX/A_STAR_GRID_INTERVAL);
-                console.log(randY/A_STAR_GRID_INTERVAL);
-                return;
-            }
-			bOverlap = this.grid[randX/A_STAR_GRID_INTERVAL][randY/A_STAR_GRID_INTERVAL].cost > 0;
+			randY = getRandomEntryInArr(BUILD_Y_OPTS);
+			bOverlap = this.buildings.some(b => {
+				return hasOverlap(generateHitbox({x: randX, y: randY}, {w:PLAYER_WIDTH, h: PLAYER_HEIGHT}), b.getHitbox());
+			});
 		}
         let c = new Civilian(
-            randX, randY, 
-            this.grid, 
+            randX, randY,
+            this.buildings,
             genRemovalFromArray(this.civilians)
         );
         const diff = Date.now() - time;
         console.log('Successful Civ Generation');
-        console.log(`Took ${diff}ms`);
+		console.log(`Took ${diff}ms`);
+		console.log('C starting pos: ' + c.pos.x + ', ' + c.pos.y);
         return c;
 	}
 
 	generateMap() {
-        let dupedGrid = GRID.map(g => [].concat(g));
         let map = [];
-        let count = 0;
         console.log('Generating ' + NUM_BUILDINGS + ' buildings');
 		for (let i = 0; i < NUM_BUILDINGS; i++) {
             let b = this.generateBuilding(i);
 
+			let count = 0;
             while (this.buildingOverlapsCurrent(b, map)) {
-                b = this.generateBuilding(i);
-            }
+				b = this.generateBuilding(i);
+			}
 
-            let intervalsWide = Math.ceil(b.size.w / A_STAR_GRID_INTERVAL);
-            let intervalsHigh = Math.ceil(b.size.h / A_STAR_GRID_INTERVAL);
-            let startingXInterval = max(0, Math.floor((b.pos.x / A_STAR_GRID_INTERVAL) - (intervalsWide/2)));
-            let startingYInterval = max(0, Math.floor((b.pos.y / A_STAR_GRID_INTERVAL) - (intervalsHigh/2)));
-
-            let endingXInterval = min(startingXInterval + intervalsWide, dupedGrid.length - 1)
-            for (let i = startingXInterval; i < endingXInterval; i++) {
-                let endingYInterval = min(startingYInterval + intervalsHigh, dupedGrid[i].length);
-                for (let k = startingYInterval; k < endingYInterval; k++) {
-                    count++;
-                    dupedGrid[i][k].cost = 1;
-                }
-            }
 
             map.push(b);
-        }
-        console.log('marked ' + count + ' spots unavail');
-        console.log(MAP_WIDTH * MAP_HEIGHT / A_STAR_GRID_INTERVAL + ' spots overall');
-        return {buildings: map, grid: dupedGrid};
+		}
+		console.log('Map generated');
+        return {buildings: map};
     }
 
     buildingOverlapsCurrent(b, map) {
@@ -165,10 +145,11 @@ class GameRoom {
 
     generateBuilding(idx) {
         let xAdjustedIndex = idx % X_CHUNKS;
-        let yAdjustedIndex = Math.floor(idx / X_CHUNKS);
+		let yAdjustedIndex = Math.floor(idx / X_CHUNKS);
+
         /** Could make this a static array and pull from idx /shrug */
         let xChunk = BUILD_X_OPTS.slice((xAdjustedIndex * X_INTERVALS_PER_CHUNK), (xAdjustedIndex * X_INTERVALS_PER_CHUNK) + X_INTERVALS_PER_CHUNK);
-        let yChunk = BUILD_X_OPTS.slice((yAdjustedIndex * Y_INTERVALS_PER_CHUNK), (yAdjustedIndex * Y_INTERVALS_PER_CHUNK) + Y_INTERVALS_PER_CHUNK);
+        let yChunk = BUILD_Y_OPTS.slice((yAdjustedIndex * Y_INTERVALS_PER_CHUNK), (yAdjustedIndex * Y_INTERVALS_PER_CHUNK) + Y_INTERVALS_PER_CHUNK);
 
         let bw = getRandomEntryInArr(BUILDING_WIDTHS);
         let bh = getRandomEntryInArr(BUILDING_WIDTHS);
@@ -194,7 +175,7 @@ class GameRoom {
 			msg.destroy();
 		}
         console.log(this.messages.length + " messages left");
-        
+
 	}
 
 	addArrow(pos, rotation) {

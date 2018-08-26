@@ -5,6 +5,22 @@ const MAP_HEIGHT = 2500;
 
 const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
+const CIV_VELOCITIES = [1.5, .5, 0, 1, 1.75, 1.25, .75, .25].map(r => {
+    let rot = r * Math.PI;
+    return {x: Math.cos(rot), y: Math.sin(rot)};
+});
+
+const CIV_NOT_NEIGH = [
+    [DIR_S, DIR_SE, DIR_SW],
+    [DIR_N, DIR_NW, DIR_NE],
+    [DIR_NW, DIR_W, DIR_SW],
+    [DIR_E, DIR_NE, DIR_SE],
+    [DIR_S, DIR_SW, DIR_W],
+    [DIR_S, DIR_SE, DIR_E],
+    [DIR_N, DIR_NE, DIR_E],
+    [DIR_N, DIR_NW, DIR_W]
+];
+
 /** Types/Enums */
 const PLAYER_COURIER = 'COURIER';
 const PLAYER_DICTATOR = 'DICTATOR';
@@ -24,7 +40,6 @@ const PLAYER_HEIGHT = 15;
 
 const PIXELS_PER_UNIT = 50;
 const GRID_INTERVAL = 5;
-const A_STAR_GRID_INTERVAL = GRID_INTERVAL * 5;
 
 const abs = Math.abs;
 const max = Math.max;
@@ -32,28 +47,15 @@ const min = Math.min;
 const pow = Math.pow;
 const sqrt = Math.sqrt;
 
-/** Pathing */
-let GRID = [];
-
-for (let i = 0; i < MAP_WIDTH; i += A_STAR_GRID_INTERVAL) {
-    GRID.push([]);
-    let idx = GRID.length - 1;
-    for (let k = 0; k < MAP_HEIGHT; k += A_STAR_GRID_INTERVAL) {
-        GRID[idx].push({x: i, y: k, cost: 0});
-    }
-}
-
-// just fill the array with dummy values to pad the empty space.
-const worldWidth = GRID[0].length * A_STAR_GRID_INTERVAL;
-const worldHeight = GRID.length * A_STAR_GRID_INTERVAL;
-const worldSize =	worldWidth * worldHeight;
-
 /** Utils */
 function genId() {
 	return Math.random().toString(36).substring(7);
 }
 
 function getRandomEntryInArr(arr) {
+    if (!arr.length) {
+        throw new Error('Tried to get random entry in empty array');
+    }
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
@@ -81,10 +83,6 @@ function hasOverlap(hb1, hb2) {
 function isInBounds(pos, size) {
     let hb = getHitbox(pos, size);
     return hb.x > 0 && hb.x + hb.w < MAP_WIDTH && hb,y > 0 && hb.y + hb.h < MAP_HEIGHT;
-}
-
-function getNodeKey(node) {
-    return `n-${node.x}-${node.y}`
 }
 
 function getPlayerHitbox(u) {
@@ -247,9 +245,8 @@ const CIV_STATES = {
     STATIC: 2
 };
 
-function Civilian(x, y, grid, myChunk, removeCB) {
+function Civilian(x, y, buildings, removeCB) {
     this.id = genId();
-    this.chunk = myChunk;
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
     this.currentPath = [];
@@ -259,7 +256,7 @@ function Civilian(x, y, grid, myChunk, removeCB) {
     this.path = [];
     this.pathIdx = 0;
     this.timeWaited = 0;
-    this.grid = grid;
+    this.buildings = buildings;
     this.chooseState();
 }
 
@@ -268,7 +265,7 @@ let civProto = Civilian.prototype;
 civProto.update = function(t) {
     switch (this.state) {
         case CIV_STATES.WALKING:
-            this.updateWalk();
+            this.updateWalk(t);
             break;
         case CIV_STATES.STATIC:
             this.incrementWaitTime(t);
@@ -287,14 +284,24 @@ civProto.incrementWaitTime = function(t) {
 
 civProto.updateWalk = function(t) {
     this.timeWaited += t;
-
-    if (this.timeWaited > this.maxWalkDirTime) {
+    this.walkTimeWaited += t;
+    if (this.walkTimeWaited > this.maxWalkDirTime) {
         this.determineNewVelocity();
     } else if (this.timeWaited > this.maxWaitTime) {
         this.chooseState();
         return;
     }
 
+    let adjustedPos = {
+        x: this.pos.x + (this.vel.x >= 0 ? this.size.w : -this.size.w),
+        y: this.pos.y + (this.vel.y >= 0 ? this.size.w : -this.size.w)
+    };
+
+    if (!this.canWalkHere(adjustedPos.x, adjustedPos.y)) {
+        console.log('Determining vel because can\'t walk');
+        this.determineNewVelocity();
+        return;
+    }
 
     this.pos.x += this.vel.x;
     this.pos.y += this.vel.y;
@@ -304,42 +311,51 @@ civProto.chooseState = function() {
     console.log('Civilian choosing state');
     let randState = Math.random();
 
-    this.maxWaitTime = 7000 + Math.floor(Math.random() * 6000);
     if (randState < .25) {
+        console.log('Chose static state');
+        this.maxWaitTime = 7000 + Math.floor(Math.random() * 6000);
         this.timeWaited = 0;
         this.state = CIV_STATES.STATIC;
     } else if (randState >= .25) {
+        console.log('Chose walking state');
+        this.maxWaitTime = 10000 + Math.floor(Math.random() * 8000);
         this.velocity = this.determineNewVelocity();
         this.timeWaited = 0;
         this.state = CIV_STATES.WALKING;
     }
-}
-
-civProto.getGridXY = function() {
-    let adjustedX = Math.floor(this.pos.x / A_STAR_GRID_INTERVAL);
-    let adjustedY = Math.floor(this.pos.y / A_STAR_GRID_INTERVAL);
-    return {x: adjustedX, y: adjustedY};
+    console.log('Max Wait: ' + this.maxWaitTime);
 }
 
 civProto.determineNewVelocity = function() {
-    this.maxWalkDirTime = 500 + Math.floor(Math.random() * 500);
-    let xy = this.getGridXY();
-    // console.log(xy);
-    let possibleDirections = this.findNeighbours(xy.adjustedX, xy.adjustedY);
-    // console.log(possibleDirections);
+    this.walkTimeWaited = 0;
+    this.maxWalkDirTime = 2000 + Math.floor(Math.random() * 500);
+
+    let impossibleDirections = CIV_NOT_NEIGH[this.dir] || [];
+    const allNeigh = this.findNeighbours(this.pos.x, this.pos.y);
+    let possibleDirections = allNeigh.filter(d => {
+        return impossibleDirections.indexOf(d) === -1;
+    });
+
+    if (possibleDirections.length === 0) {
+        console.log('setting all directions to neighbors')
+        possibleDirections = allNeigh;
+    }
+
     this.dir = getRandomEntryInArr(possibleDirections);
+    let baseVel = CIV_VELOCITIES[this.dir];
+    this.vel = {x: baseVel.x * this.speed, y: baseVel.y * this.speed};
 }
 
 civProto.findNeighbours = function(x, y)
 {
-    var	N = y - A_STAR_GRID_INTERVAL,
-    S = y + A_STAR_GRID_INTERVAL,
-    E = x + A_STAR_GRID_INTERVAL,
-    W = x - A_STAR_GRID_INTERVAL,
-    myN = N > -A_STAR_GRID_INTERVAL && this.canWalkHere(x, N, this.grid),
-    myS = S < worldHeight && this.canWalkHere(x, S, this.grid),
-    myE = E < worldWidth && this.canWalkHere(E, y, this.grid),
-    myW = W > -A_STAR_GRID_INTERVAL && this.canWalkHere(W, y, this.grid),
+    var	N = y - this.size.w,
+    S = y + this.size.w,
+    E = x + this.size.w,
+    W = x - this.size.w,
+    myN = this.canWalkHere(x, N),
+    myS = this.canWalkHere(x, S),
+    myE = this.canWalkHere(E, y),
+    myW = this.canWalkHere(W, y),
     result = [];
 
     if(myN)
@@ -351,39 +367,41 @@ civProto.findNeighbours = function(x, y)
     if(myW)
     result.push(DIR_W);
 
-    this.DiagonalNeighbours(myN, myS, myE, myW, N, S, E, W, result, this.grid);
+    this.DiagonalNeighbours(myN, myS, myE, myW, N, S, E, W, result);
 
     return result;
 }
 
-
-
-// returns every available North East, South East,
 // South West or North West cell - no squeezing through
 // "cracks" between two diagonals
 civProto.DiagonalNeighbours = function(myN, myS, myE, myW, N, S, E, W, result)
 {
     if(myN)
     {
-        if(myE && this.canWalkHere(E, N, this.grid))
+        if(myE && this.canWalkHere(E, N))
         result.push(DIR_NE);
-        if(myW && this.canWalkHere(W, N, this.grid))
+        if(myW && this.canWalkHere(W, N))
         result.push(DIR_NW);
     }
     if(myS)
     {
-        if(myE && this.canWalkHere(E, S, this.grid))
+        if(myE && this.canWalkHere(E, S))
         result.push(DIR_SE);
-        if(myW && this.canWalkHere(W, S, this.grid))
+        if(myW && this.canWalkHere(W, S))
         result.push(DIR_SW);
     }
 }
 
-civProto.canWalkHere = function(x, y, grid) {
-    return grid[x/A_STAR_GRID_INTERVAL][y/A_STAR_GRID_INTERVAL].cost === 0;
+civProto.canWalkHere = function(x, y) {
+    return !(x > MAP_WIDTH - this.size.w ||
+        x - this.size.w < 0 || y - this.size.h < 0 ||
+        y > MAP_HEIGHT - this.size.h ||
+        this.buildings.some(b => hasOverlap(
+            generateHitbox({x:x, y:y}, {w:this.size.w, h: this.size.h}),
+            b.getHitbox())
+        )
+    );
 }
-
-/** End astar methods */
 
 Civilian.draw = function(pos, size) {
     ctx.save();
@@ -398,25 +416,4 @@ Civilian.draw = function(pos, size) {
 
 civProto.getHitbox = function() {
     return generateHitbox(this.pos, this.size);
-}
-
-function Node(Parent, Point)
-{
-    var newNode = {
-        // pointer to another Node object
-        Parent:Parent,
-        // array index of this Node in the world linear array
-        value:Point.x + (Point.y * worldWidth),
-        // the location coordinates of this Node
-        x:Point.x,
-        y:Point.y,
-        // the distanceFunction cost to get
-        // TO this Node from the START
-        f:0,
-        // the distanceFunction cost to get
-        // from this Node to the GOAL
-        g:0
-    };
-
-    return newNode;
 }

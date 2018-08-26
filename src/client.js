@@ -526,11 +526,11 @@ function drawBackground() {
     ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
     let allObjects = [
-        [FIRED_BULLETS, drawBullets], 
-        [map, drawBuildings], 
-        [DROPPED_MESSAGES, drawMessages], 
-        [DROPPED_ARROWS, drawArrows], 
-        [EXTERNAL_PLAYERS, drawOtherPlayers], 
+        [FIRED_BULLETS, drawBullets],
+        [map, drawBuildings],
+        [DROPPED_MESSAGES, drawMessages],
+        [DROPPED_ARROWS, drawArrows],
+        [EXTERNAL_PLAYERS, drawOtherPlayers],
         [ACTIVE_CIVILIANS, drawCivilians]
     ];
 
@@ -599,7 +599,6 @@ socket.on('set-game-info', function(data) {
         EXTERNAL_PLAYERS[p.id] = new type(p.pos.x, p.pos.y, true);
     });
     map = data.buildings;
-    bullets 
 });
 
 socket.on('game-update', function(data) {
