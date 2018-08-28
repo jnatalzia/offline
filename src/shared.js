@@ -5,6 +5,8 @@ const MAP_HEIGHT = 3000;
 
 const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
+const CIVILIANS_PER_ROOM = 15;
+
 const GAME_STATES = {
     LOADING: 0,
     PLAYING: 1,

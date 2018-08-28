@@ -83,7 +83,7 @@ class GameRoom {
 		this.civilians = [];
 		this.civiliansKilled = 0;
 		this.prevTime = Date.now();
-		for (let i = 0; i < 20; i++) {
+		for (let i = 0; i < CIVILIANS_PER_ROOM; i++) {
 			let civ = this.genCivilian();
             this.civilians.push(civ);
         }
