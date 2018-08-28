@@ -42,6 +42,7 @@ const PLAYER_ROLE_IDX = {
 };
 
 const TICK_TIME = 10;//1000/60;
+const SERVER_UPDATE_TICK = TICK_TIME * 1.75;
 const MAX_DROPPED_ARROWS = 6;
 const MAX_DROPPED_MESSAGES = 3;
 const CIVILIAN_KILL_CAP = 1;
@@ -110,6 +111,13 @@ function genRemovalFromArray(arr) {
     }
 }
 
+function getAdjustedVel(vel, t) {
+    return {
+        x: vel.x  * (t/TICK_TIME),
+        y: vel.y  * (t/TICK_TIME)
+    };
+}
+
 /** Shared draw classes */
 function GroundArrow(x, y, rotation) {
     this.id = genId();
@@ -161,7 +169,7 @@ GroundArrow.draw = function(pos, rotation, opacity) {
 
 function Bullet(x, y, rotation, removeCB) {
     this.id = genId();
-    this.speed = 8;
+    this.speed = 6;
     this.pos = {x: x, y: y};
     this.origPos = {x: x, y: y};
     this.rotation = rotation;
@@ -302,9 +310,14 @@ civProto.updateWalk = function(t) {
         return;
     }
 
+    let adjustedVel = {
+        x: (this.vel.x * (t/TICK_TIME)),
+        y: (this.vel.y * (t/TICK_TIME))
+    }
+
     let adjustedPos = {
-        x: this.pos.x + (this.vel.x >= 0 ? this.size.w : -this.size.w),
-        y: this.pos.y + (this.vel.y >= 0 ? this.size.w : -this.size.w)
+        x: this.pos.x + adjustedVel.x,
+        y: this.pos.y + adjustedVel.y
     };
 
     if (!this.canWalkHere(adjustedPos.x, adjustedPos.y)) {
@@ -312,8 +325,8 @@ civProto.updateWalk = function(t) {
         return;
     }
 
-    this.pos.x += (this.vel.x * (t/TICK_TIME));
-    this.pos.y += (this.vel.y * (t/TICK_TIME));
+    this.pos.x += adjustedVel.x;
+    this.pos.y += adjustedVel.y;
 }
 
 civProto.chooseState = function() {
