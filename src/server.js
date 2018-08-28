@@ -24,8 +24,8 @@ for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedHeight; i += GRID_INTERVAL) {
     BUILD_Y_OPTS.push(i);
 }
 
-const X_CHUNKS = 8;
-const Y_CHUNKS = 8;
+const X_CHUNKS = 5;
+const Y_CHUNKS = 5;
 
 const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
 const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
@@ -419,7 +419,7 @@ class GameRoom {
 		// Finding new room for players
 		this.clearAllIntervals();
     }
-    
+
     clearAllIntervals() {
         clearInterval(this.updateClientInterval);
         clearInterval(this.updateInterval);

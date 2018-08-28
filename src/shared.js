@@ -1,11 +1,11 @@
 "use strict";
 
-const MAP_WIDTH = 3000;
-const MAP_HEIGHT = 3000;
+const MAP_WIDTH = 2000;
+const MAP_HEIGHT = 2000;
 
 const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
-const CIVILIANS_PER_ROOM = 15;
+const CIVILIANS_PER_ROOM = 8;
 
 const GAME_STATES = {
     LOADING: 0,
