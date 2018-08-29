@@ -83,6 +83,7 @@ class GameRoom {
 		this.civilians = [];
 		this.civiliansKilled = 0;
 		this.prevTime = Date.now();
+		this.lowerPlayerState = LOWER_PLAYING_STATES.PHASE_ONE;
 		for (let i = 0; i < CIVILIANS_PER_ROOM; i++) {
 			let civ = this.genCivilian();
             this.civilians.push(civ);
@@ -401,17 +402,13 @@ class GameRoom {
 		});
 		console.log('Deleted user from room: ' + this.id + ', key count: ' + this.numUsers());
 
-		if (this.isEmpty()) {
-			this.remove();
-			console.log('Removing room w/ id: ' + this.id);
-			return;
-		} else {
-			console.log('Finding new user to replace');
-			this.clearAllIntervals();
-			Object.keys(this.users).forEach(uid => {
-				this.users[uid].socket.emit('set-state', { state: GAME_STATES.CHOOSING_ROOM });
-			});
-		}
+		console.log('Finding new user to replace');
+		this.clearAllIntervals();
+		this.remove();
+		Object.keys(this.users).forEach(uid => {
+			let user = this.users[uid];
+			user.socket.emit('set-state', { state: GAME_STATES.RESET_GAME, reset: true });
+		});
 	}
 
 	remove() {
@@ -432,6 +429,13 @@ class GameRoom {
 
 		return availableRoles[Math.floor(Math.random() * availableRoles.length)];
 	}
+	startPhaseTwo() {
+		this.lowerPlayerState = LOWER_PLAYING_STATES.PHASE_TWO;
+
+		Object.keys(this.users).forEach(uid => {
+			this.users[uid].socket.emit('start-phase-two', { state: LOWER_PLAYING_STATES.PHASE_TWO });
+		});
+	}
 }
 
 /**
@@ -449,12 +453,7 @@ class User {
 		this.pos = {x: -500, y: -500};
 		this.type = type;
 		this.setupSocketHandlers();
-		this.socket.emit('set-state', {
-			state: GAME_STATES.CHOOSING_ROOM
-		});
-		findRoom(this);
-		this.socket.emit('set-start', {id: this.id, pos: this.pos});
-		this.emitOtherPlayers();
+		this.findRoom();
 	}
 
 	emitOtherPlayers() {
@@ -485,7 +484,22 @@ class User {
 		}.bind(this));
 		this.socket.on('destroy-message', function(data) {
 			this.room.deleteMessage(data.id);
+			if (data.courier) {
+				this.room.startPhaseTwo();
+			}
 		}.bind(this));
+		this.socket.on('find-room', () => {
+			this.findRoom();
+		});
+	}
+
+	findRoom() {
+		this.socket.emit('set-state', {
+			state: GAME_STATES.CHOOSING_ROOM
+		});
+		findRoom(this);
+		this.socket.emit('set-start', {id: this.id, pos: this.pos});
+		this.emitOtherPlayers();
 	}
 
 	start() {

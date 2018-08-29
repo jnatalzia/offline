@@ -12,17 +12,6 @@ const CURSOR_RADIUS = 10;
 
 const KEY_CHECKER = {};
 
-/** To be swapped with server logic */
-let DROPPED_MESSAGES = [];
-let DROPPED_ARROWS = [];
-let FIRED_BULLETS = [];
-let ACTIVE_CIVILIANS = [];
-
-const EXTERNAL_PLAYERS = [];
-const EXTERNAL_PLAYER_INDICES = {};
-
-let map = [];
-
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 
@@ -69,11 +58,45 @@ function getHumanReadableFromType(type) {
 /** Game State */
 let mousePos = { x: 0, y: 0 };
 let player;
-let globalGameGoal = 'The Courier has not yet picked up the message.'
+let globalGameGoal = 'The Courier has not yet picked up the message.';
 let killedCivilians = 0;
 let globalTime = 0;
 let userID;
-let currentGameState = GAME_STATES.LOADING;
+let currentGameState = GAME_STATES.PRE_CONNECT;
+let playingGameState = LOWER_PLAYING_STATES.PHASE_ONE;
+let socket;
+let DROPPED_MESSAGES = [];
+let DROPPED_ARROWS = [];
+let FIRED_BULLETS = [];
+let ACTIVE_CIVILIANS = [];
+
+let EXTERNAL_PLAYERS = [];
+let EXTERNAL_PLAYER_INDICES = {};
+
+let updateInterval;
+
+function resetGameState() {
+    mousePos = { x: 0, y: 0 };
+    player = undefined;
+    globalGameGoal = 'The Courier has not yet picked up the message.';
+    killedCivilians = 0;
+    globalTime = 0;
+    userID = undefined;
+    playingGameState = LOWER_PLAYING_STATES.PHASE_ONE;
+    EXTERNAL_PLAYERS = [];
+    EXTERNAL_PLAYER_INDICES = [];
+    DROPPED_MESSAGES = [];
+    DROPPED_ARROWS = [];
+    FIRED_BULLETS = [];
+    ACTIVE_CIVILIANS = [];
+
+    EXTERNAL_PLAYERS = [];
+    EXTERNAL_PLAYER_INDICES = {};
+    clearInterval(updateInterval);
+    setTimeout(() => {
+        socket.emit('find-room');
+    }, RESET_TIMEOUT);
+}
 
 function addMessage(pos) {
     // DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
@@ -112,8 +135,6 @@ function inherits (ctor, superCtor) {
   });
 };
 
-function Extendable() {}
-
 /** Player Class */
 function Player(x, y, isNotPlayer) {
     this.pos = { x: x, y: y };
@@ -122,7 +143,7 @@ function Player(x, y, isNotPlayer) {
     this.speed = 1.25;
     this.isPlayer = !isNotPlayer;
     this.job = 'Do a thing.';
-    this.fillStyle = '#fff';
+    this.fillStyle = 'blue';
     this.controls = [
         { key: 'WSAD', job: 'Moves the Player' }
     ]
@@ -243,7 +264,7 @@ pp.absoluteDraw = function(t) {
     ctx.translate(this.pos.x, this.pos.y);
     ctx.beginPath();
     ctx.rect(-this.size.w/2, -this.size.h/2, this.size.w, this.size.h);
-    ctx.fillStyle = this.fillStyle;
+    ctx.fillStyle = player.type === PLAYER_DICTATOR ? '#fff' : this.fillStyle;
     ctx.strokeStyle = '#111';
     ctx.fill();
     ctx.stroke();
@@ -475,6 +496,10 @@ mp.drawUI = function() {
     ctx.restore();
 }
 
+mp.startPhaseTwo = function() {
+    this.job = 'Misdirect the Dictator to get the Courier Back to Base!';
+}
+
 function Courier(x, y) {
     this.super_.apply(this, arguments);
 
@@ -492,10 +517,6 @@ let cp = Courier.prototype;
 
 cp.addEventHandlers = function() {
     this.super_.prototype.addEventHandlers.apply(this, arguments);
-
-    socket.on('message-collision', (msg) => {
-        this.canPickUp(msg);
-    });
 }
 
 cp.update = function(t) {
@@ -513,10 +534,15 @@ cp.update = function(t) {
     }
 }
 
+cp.startPhaseTwo = function() {
+    this.speed *= 1.6;
+    this.job = 'Get Back to the Base!';
+}
+
 cp.canPickUp = function(msg) {
     if (!this.justPickedUp && KEY_CHECKER[32]) {
         console.log("The encoded message tells you: " + msg.coords);
-        socket.emit('destroy-message', { id: msg.id });
+        socket.emit('destroy-message', { id: msg.id, courier: true });
         this.justPickedUp = true;
     }
 }
@@ -591,6 +617,10 @@ dp.drawUI = function() {
     ctx.restore();
 }
 
+dp.startPhaseTwo = function() {
+    this.job = 'The courier is running! Kill them before they get back to base.';
+}
+
 function updateGameStateFromServer(data) {
     let players = data.players.filter(p => p.id !== userID);
     players.forEach(p => {
@@ -610,10 +640,6 @@ function updateGameStateFromServer(data) {
     killedCivilians = data.civiliansKilled;
 }
 
-/** Bootup */
-function loadMap() {
-    let map = [];
-}
 /** Main Update Loop */
 function update(time) {
     let deltaTime = time - globalTime;
@@ -630,6 +656,13 @@ function update(time) {
             break;
         case GAME_STATES.STARTING:
             drawPregame();
+            break;
+        case GAME_STATES.PRE_CONNECT:
+            updateMainMenu();
+            drawMainMenu();
+            break;
+        case GAME_STATES.RESET:
+            drawResetScreen();
             break;
     }
     window.requestAnimationFrame(update);
@@ -665,6 +698,35 @@ function drawChooseScreen() {
     ctx.restore();
 }
 
+function updateMainMenu() {
+    if (KEY_CHECKER[32]) {
+        currentGameState = GAME_STATES.LOADING;
+        connectSocket();
+    }
+}
+
+function drawMainMenu() {
+    clearBoard();
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'black';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 24px Arial';
+    ctx.fillText(`Press Space to join an available room.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+    ctx.restore();
+}
+
+function drawResetScreen() {
+    clearBoard();
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'black';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 24px Arial';
+    ctx.fillText(`A player left. Finding you a new room in ${RESET_TIMEOUT/1000} seconds`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+    ctx.restore();
+}
+
 function drawPregame() {
     clearBoard();
 
@@ -672,7 +734,8 @@ function drawPregame() {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'black';
     ctx.font = 'bold 24px Arial';
-    ctx.fillText(`All players loaded. Game starting in 3 seconds.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+    ctx.fillText(`You are the ${getHumanReadableFromType(player.type)}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
+    ctx.fillText(`All players loaded. Game starting in 3 seconds.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 30);
 
     ctx.restore();
 }
@@ -757,53 +820,70 @@ function drawCivilians(civs) {
 }
 
 /** Socket listeners */
-socket.on('set-start', function(data) {
-    userID = data.id;
-    player.pos = data.pos;
-    socket.emit('ready', {
-        pos: {x: player.pos.x, y: player.pos.y}
+function connectSocket() {
+    socket = io({ upgrade: false, transports: ["websocket"] });
+    socket.on('set-start', function(data) {
+        userID = data.id;
+        player.pos = data.pos;
+        socket.emit('ready', {
+            pos: {x: player.pos.x, y: player.pos.y}
+        });
     });
-});
 
-socket.on('game-start', function(data) {
-    console.log("Game start");
-    currentGameState = GAME_STATES.PLAYING;
-    setInterval(updateServer, SERVER_UPDATE_TICK);
-});
-
-socket.on('set-game-info', function(data) {
-    const players = data.players.filter(p => p.id !== userID);
-    players.forEach(p => {
-        const type = getClassFromType(p.type);
-        EXTERNAL_PLAYER_INDICES[p.id] = EXTERNAL_PLAYERS.length;
-        let newPlayer = new type(p.pos.x, p.pos.y, true)
-        EXTERNAL_PLAYERS.push(newPlayer);
-        newPlayer.vel = data.vel;
+    socket.on('game-start', function(data) {
+        console.log("Game start");
+        currentGameState = GAME_STATES.PLAYING;
+        updateInterval = setInterval(updateServer, SERVER_UPDATE_TICK);
     });
-    map = data.buildings;
-});
 
-socket.on('game-update', function(data) {
-    updateGameStateFromServer(data);
-});
+    socket.on('set-game-info', function(data) {
+        const players = data.players.filter(p => p.id !== userID);
+        players.forEach(p => {
+            const type = getClassFromType(p.type);
+            EXTERNAL_PLAYER_INDICES[p.id] = EXTERNAL_PLAYERS.length;
+            let newPlayer = new type(p.pos.x, p.pos.y, true)
+            EXTERNAL_PLAYERS.push(newPlayer);
+            newPlayer.vel = data.vel;
+        });
+        map = data.buildings;
+    });
 
-socket.on('player-added', function(data) {
-    const type = getClassFromType(data.type);
-    EXTERNAL_PLAYER_INDICES[data.id] = EXTERNAL_PLAYERS.length;
-    let p = new type(data.pos.x, data.pos.y, true)
-    EXTERNAL_PLAYERS.push(p);
-    p.vel = data.vel;
-});
+    socket.on('game-update', function(data) {
+        updateGameStateFromServer(data);
+    });
 
-socket.on('player-removed', function(data) {
-    let playerIdx = EXTERNAL_PLAYER_INDICES[data.id];
-    EXTERNAL_PLAYERS.splice(playerIdx, 1);
-    delete EXTERNAL_PLAYER_INDICES[data.id];
-});
+    socket.on('player-added', function(data) {
+        const type = getClassFromType(data.type);
+        EXTERNAL_PLAYER_INDICES[data.id] = EXTERNAL_PLAYERS.length;
+        let p = new type(data.pos.x, data.pos.y, true)
+        EXTERNAL_PLAYERS.push(p);
+        p.vel = data.vel;
+    });
 
-socket.on('set-state', function(data) {
-    currentGameState = data.state;
-});
+    socket.on('player-removed', function(data) {
+        let playerIdx = EXTERNAL_PLAYER_INDICES[data.id];
+        EXTERNAL_PLAYERS.splice(playerIdx, 1);
+        delete EXTERNAL_PLAYER_INDICES[data.id];
+    });
+
+    socket.on('set-state', function(data) {
+        currentGameState = data.state;
+
+        if (data.reset) {
+            resetGameState();
+        }
+    });
+
+    socket.on('set-type', function(d) {
+        const type = getClassFromType(d.type);
+        player = new type(-1, -1);
+    });
+
+    socket.on('start-phase-two', function() {
+        globalGameGoal = 'The Courier has the Message!';
+        player.startPhaseTwo();
+    });
+}
 
 /** Send client updates to server */
 function updateServer() {
@@ -814,11 +894,4 @@ function updateServer() {
 }
 
 /** Start game */
-loadMap();
-
-socket.on('set-type', function(d) {
-    const type = getClassFromType(d.type);
-    player = new type(-1, -1);
-});
-
 update();

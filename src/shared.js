@@ -6,12 +6,18 @@ const MAP_HEIGHT = 2000;
 const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
 const CIVILIANS_PER_ROOM = 8;
-
+const RESET_TIMEOUT = 3000;
 const GAME_STATES = {
     LOADING: 0,
     PLAYING: 1,
     CHOOSING_ROOM: 2,
-    STARTING: 3
+    STARTING: 3,
+    PRE_CONNECT: 4
+};
+
+const LOWER_PLAYING_STATES = {
+    PHASE_ONE: 0,
+    PHASE_TWO: 1
 };
 
 const CIV_VELOCITIES = [1.5, .5, 0, 1, 1.75, 1.25, .75, .25].map(r => {
