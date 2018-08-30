@@ -299,7 +299,11 @@ class GameRoom {
 					this.civiliansKilled++;
                     civ.remove();
                     bul.remove();
-                    shouldBreak = true;
+					shouldBreak = true;
+					if (this.civiliansKilled > CIVILIAN_KILL_CAP) {
+						console.log('Ending game');
+						this.gameOver([PLAYER_COURIER, PLAYER_MESSAGE_DROPPER]);
+					}
                     break;
                 }
             }
@@ -307,6 +311,17 @@ class GameRoom {
                 break;
             }
 		}
+	}
+
+	gameOver(winners) {
+		Object.keys(this.users).forEach(k => {
+			let user = this.users[k];
+			user.socket.emit('game-over', {
+				didWin: winners.indexOf(user.type) !== -1,
+				reason: GAME_CONDITIONS.CIVILIANS_SHOT
+			});
+		});
+		this.remove();
 	}
 
 	checkDeathCollisions(u) {
@@ -320,10 +335,6 @@ class GameRoom {
 				break;
             }
 		}
-    }
-
-    civilianShot() {
-
     }
 
 	getUserInfo() {
@@ -414,6 +425,11 @@ class GameRoom {
 	remove() {
 		delete ROOMS[this.id];
 		// Finding new room for players
+		Object.keys(this.users).forEach(uid => {
+			let user = this.users[uid];
+			user.room = undefined;
+		});
+		this.users = [];
 		this.clearAllIntervals();
     }
 

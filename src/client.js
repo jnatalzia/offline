@@ -74,9 +74,13 @@ let EXTERNAL_PLAYERS = [];
 let EXTERNAL_PLAYER_INDICES = {};
 
 let updateInterval;
+let didWin;
+let gameOverReason;
+let resetReason;
 
 function resetGameState() {
     mousePos = { x: 0, y: 0 };
+    player.remove();
     player = undefined;
     globalGameGoal = 'The Courier has not yet picked up the message.';
     killedCivilians = 0;
@@ -92,10 +96,8 @@ function resetGameState() {
 
     EXTERNAL_PLAYERS = [];
     EXTERNAL_PLAYER_INDICES = {};
+    didWin = undefined;
     clearInterval(updateInterval);
-    setTimeout(() => {
-        socket.emit('find-room');
-    }, RESET_TIMEOUT);
 }
 
 function addMessage(pos) {
@@ -166,6 +168,10 @@ pp.die = function() {
 
 pp.getAdjustedSpeed = function(t) {
     return (KEY_CHECKER[16] ? this.speed * 1.6 : this.speed);
+}
+
+pp.remove = function() {
+
 }
 
 pp.update = function(t) {
@@ -591,12 +597,8 @@ dp.canPickUp = function(msg) {
 
 dp.addEventHandlers = function() {
     this.super_.prototype.addEventHandlers.apply(this, arguments);
-
-    canvas.addEventListener('click', this.fireBullet.bind(this));
-
-    socket.on('message-collision', (msg) => {
-        this.canPickUp(msg);
-    });
+    this.boundClickHandler = this.fireBullet.bind(this);
+    canvas.addEventListener('click', this.boundClickHandler);
 }
 
 dp.fireBullet = function() {
@@ -619,6 +621,11 @@ dp.drawUI = function() {
 
 dp.startPhaseTwo = function() {
     this.job = 'The courier is running! Kill them before they get back to base.';
+}
+
+dp.remove = function() {
+    this.super_.prototype.drawUI.apply(this, arguments);
+    canvas.removeEventListener('click', this.boundClickHandler);
 }
 
 function updateGameStateFromServer(data) {
@@ -663,6 +670,10 @@ function update(time) {
             break;
         case GAME_STATES.RESET:
             drawResetScreen();
+            break;
+        case GAME_STATES.GAME_OVER:
+            updateGameOverScreen();
+            drawGameOverScreen();
             break;
     }
     window.requestAnimationFrame(update);
@@ -723,7 +734,7 @@ function drawResetScreen() {
     ctx.fillStyle = 'black';
     ctx.textBaseline = 'middle';
     ctx.font = 'bold 24px Arial';
-    ctx.fillText(`A player left. Finding you a new room in ${RESET_TIMEOUT/1000} seconds`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+    ctx.fillText(`${resetReason} Finding you a new room in ${RESET_TIMEOUT/1000} seconds`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
     ctx.restore();
 }
 
@@ -736,6 +747,39 @@ function drawPregame() {
     ctx.font = 'bold 24px Arial';
     ctx.fillText(`You are the ${getHumanReadableFromType(player.type)}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
     ctx.fillText(`All players loaded. Game starting in 3 seconds.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 30);
+
+    ctx.restore();
+}
+
+function getGameOverReasonText() {
+    switch(gameOverReason) {
+        case GAME_CONDITIONS.CIVILIANS_SHOT:
+            return 'Too many civilians died.';
+        default:
+            return 'Unknown win reason.';
+    }
+
+}
+
+function updateGameOverScreen() {
+    if (KEY_CHECKER[32]) {
+        currentGameState = GAME_STATES.RESET;
+        resetReason = 'Starting a new game!';
+        setTimeout(() => {
+            socket.emit('find-room');
+        }, RESET_TIMEOUT);
+    }
+}
+
+function drawGameOverScreen() {
+    clearBoard();
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'black';
+    ctx.font = 'bold 24px Arial';
+    ctx.fillText(`You ${didWin ? 'won!' : 'lost.'} Press Space to play again.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
+    ctx.fillText(getGameOverReasonText(), CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
 
     ctx.restore();
 }
@@ -871,6 +915,10 @@ function connectSocket() {
 
         if (data.reset) {
             resetGameState();
+            resetReason = 'A player left.'
+            setTimeout(() => {
+                socket.emit('find-room');
+            }, RESET_TIMEOUT);
         }
     });
 
@@ -882,6 +930,13 @@ function connectSocket() {
     socket.on('start-phase-two', function() {
         globalGameGoal = 'The Courier has the Message!';
         player.startPhaseTwo();
+    });
+
+    socket.on('game-over', data => {
+        resetGameState();
+        currentGameState = GAME_STATES.GAME_OVER;
+        didWin = data.didWin;
+        gameOverReason = data.reason;
     });
 }
 

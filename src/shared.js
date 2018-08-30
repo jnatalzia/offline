@@ -12,12 +12,18 @@ const GAME_STATES = {
     PLAYING: 1,
     CHOOSING_ROOM: 2,
     STARTING: 3,
-    PRE_CONNECT: 4
+    PRE_CONNECT: 4,
+    GAME_OVER: 5,
+    RESET: 6
 };
 
 const LOWER_PLAYING_STATES = {
     PHASE_ONE: 0,
     PHASE_TWO: 1
+};
+
+const GAME_CONDITIONS = {
+    CIVILIANS_SHOT: 0
 };
 
 const CIV_VELOCITIES = [1.5, .5, 0, 1, 1.75, 1.25, .75, .25].map(r => {
