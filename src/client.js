@@ -755,6 +755,8 @@ function getGameOverReasonText() {
     switch(gameOverReason) {
         case GAME_CONDITIONS.CIVILIANS_SHOT:
             return 'Too many civilians died.';
+        case GAME_CONDITIONS.SHOT_COURIER:
+            return 'The courier has been shot!';
         default:
             return 'Unknown win reason.';
     }
@@ -933,6 +935,7 @@ function connectSocket() {
     });
 
     socket.on('game-over', data => {
+        console.log('Game over achieved');
         resetGameState();
         currentGameState = GAME_STATES.GAME_OVER;
         didWin = data.didWin;

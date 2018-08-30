@@ -270,12 +270,17 @@ class GameRoom {
 	}
 
 	checkCollisions() {
-		Object.keys(this.users).forEach(k => {
-			let user = this.users[k];
+		let endLoop;
+		let uKeys = Object.keys(this.users)
+
+		for (let i = 0; i < uKeys.length; i++) {
+			let user = this.users[uKeys[i]];
 			if (user.type !== PLAYER_DICTATOR) {
-				this.checkDeathCollisions(user);
+				if (this.checkDeathCollisions(user)) {
+					return;
+				}
 			}
-        });
+		}
 
         for (let b = 0; b < this.bullets.length; b++) {
             let bul = this.bullets[b];
@@ -301,8 +306,7 @@ class GameRoom {
                     bul.remove();
 					shouldBreak = true;
 					if (this.civiliansKilled > CIVILIAN_KILL_CAP) {
-						console.log('Ending game');
-						this.gameOver([PLAYER_COURIER, PLAYER_MESSAGE_DROPPER]);
+						this.gameOver([PLAYER_COURIER, PLAYER_MESSAGE_DROPPER], GAME_CONDITIONS.CIVILIANS_SHOT);
 					}
                     break;
                 }
@@ -313,12 +317,14 @@ class GameRoom {
 		}
 	}
 
-	gameOver(winners) {
+	gameOver(winners, reason) {
+		console.log('Ending game');
 		Object.keys(this.users).forEach(k => {
 			let user = this.users[k];
+			console.log('Sending game over to user: ' + user.id);
 			user.socket.emit('game-over', {
 				didWin: winners.indexOf(user.type) !== -1,
-				reason: GAME_CONDITIONS.CIVILIANS_SHOT
+				reason: reason
 			});
 		});
 		this.remove();
@@ -330,7 +336,10 @@ class GameRoom {
             let bul = this.bullets[b];
             let bHbox = bul.getHitbox();
 			if (hasOverlap(playerHitbox, bHbox)) {
-				u.socket.emit('shot', bul);
+				if (u.type === PLAYER_COURIER) {
+					this.gameOver([PLAYER_DICTATOR], GAME_CONDITIONS.SHOT_COURIER);
+					return true;
+				}
 				bul.remove();
 				break;
             }
@@ -423,6 +432,7 @@ class GameRoom {
 	}
 
 	remove() {
+		this.clearAllIntervals();
 		delete ROOMS[this.id];
 		// Finding new room for players
 		Object.keys(this.users).forEach(uid => {
@@ -430,7 +440,7 @@ class GameRoom {
 			user.room = undefined;
 		});
 		this.users = [];
-		this.clearAllIntervals();
+		console.log('Room removed');
     }
 
     clearAllIntervals() {
