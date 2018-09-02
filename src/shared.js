@@ -326,11 +326,11 @@ civProto.updateWalk = function(t) {
 civProto.chooseState = function() {
     let randState = Math.random();
 
-    if (randState < .25) {
+    if (randState < .45) {
         this.maxWaitTime = 7000 + Math.floor(Math.random() * 6000);
         this.timeWaited = 0;
         this.state = CIV_STATES.STATIC;
-    } else if (randState >= .25) {
+    } else {
         this.maxWaitTime = 10000 + Math.floor(Math.random() * 8000);
         this.dir = undefined;
         this.velocity = this.determineNewVelocity();

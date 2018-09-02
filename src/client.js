@@ -535,7 +535,7 @@ function drawChooseScreen() {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'black';
     ctx.font = 'bold 24px Arial';
-    let plysLeft = 2 - EXTERNAL_PLAYERS.length;
+    let plysLeft = 1 - EXTERNAL_PLAYERS.length;
     if (player.type) ctx.fillText(`You are the ${getHumanReadableFromType(player.type)}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
     ctx.fillText(`Waiting for ${plysLeft} more player${plysLeft === 1 ? '' : 's'}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
 
@@ -642,7 +642,6 @@ function drawBackground(t) {
         [FIRED_BULLETS, drawBullets],
         [map, drawBuildings],
         [DROPPED_MESSAGES, drawMessages],
-        [DROPPED_ARROWS, drawArrows],
         [EXTERNAL_PLAYERS, drawOtherPlayers],
         [ACTIVE_CIVILIANS, drawCivilians]
     ];
@@ -749,6 +748,7 @@ function connectSocket() {
         currentGameState = data.state;
 
         if (data.reset) {
+            console.log('Got reset state');
             resetGameState();
             resetReason = 'A player left.'
             setTimeout(() => {

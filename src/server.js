@@ -164,7 +164,35 @@ class GameRoom {
         return building;
     }
 
+    generateMessage(number) {
+        console.log('Generating a message');
+        let takenChunks = Object.keys(this.users).reduce((acc, uKey) => {
+            let user = this.users[uKey];
+            acc.x.push(Math.floor(user.pos.x / (MAP_WIDTH / X_CHUNKS)));
+            acc.y.push(Math.floor(user.pos.y / (MAP_WIDTH / Y_CHUNKS)));
+            return acc;
+        }, {x: [], y: []});
+
+        let chunkChoices = {x: [], y: []};
+        [0,1,2,3,4].forEach(num => {
+            if (takenChunks.x.indexOf(num) === -1) chunkChoices.x.push(num);
+            if (takenChunks.y.indexOf(num) === -1) chunkChoices.y.push(num);
+        });
+
+        for (let i = 0; i < number; i++) {
+            let xChunk = getRandomEntryInArr(chunkChoices.x);
+            let yChunk = getRandomEntryInArr(chunkChoices.y);
+
+            this.addMessage({
+                x: getRandomEntryInArr(BUILD_X_OPTS.slice((xChunk * X_INTERVALS_PER_CHUNK), (xChunk * X_INTERVALS_PER_CHUNK) + X_INTERVALS_PER_CHUNK)),
+                y: getRandomEntryInArr(BUILD_Y_OPTS.slice((yChunk * Y_INTERVALS_PER_CHUNK), (yChunk * Y_INTERVALS_PER_CHUNK) + Y_INTERVALS_PER_CHUNK))
+            });
+        }   
+    }
+
 	addMessage(pos) {
+        console.log('Adding message at: ');
+        console.log(pos);
 		const that = this;
 		this.messages.push(new Message(pos.x, pos.y, function() {
 			let idx = that.messages.indexOf(this);
@@ -298,7 +326,8 @@ class GameRoom {
 		console.log('Ending game');
 		Object.keys(this.users).forEach(k => {
 			let user = this.users[k];
-			console.log('Sending game over to user: ' + user.id);
+            console.log('Sending game over to user: ' + user.id);
+            console.log('Did win: ' + winner === user.type);
 			user.socket.emit('game-over', {
 				didWin: winner === user.type,
 				reason: reason
@@ -314,7 +343,7 @@ class GameRoom {
             let bHbox = bul.getHitbox();
 			if (hasOverlap(playerHitbox, bHbox)) {
 				if (u.type === PLAYER_COURIER) {
-					this.gameOver([PLAYER_DICTATOR], GAME_CONDITIONS.SHOT_COURIER);
+					this.gameOver(PLAYER_DICTATOR, GAME_CONDITIONS.SHOT_COURIER);
 					return true;
 				}
 				bul.remove();
@@ -341,9 +370,15 @@ class GameRoom {
 	 * Start new game
 	 */
 	start() {
-		users.forEach(u => {
-			u.start();
-		});
+        // Get first messages
+        this.generateMessage(3);
+        Object.keys(this.users).forEach(uid => {
+            let usr = this.users[uid];
+            usr.socket.emit('set-state', {state: GAME_STATES.STARTING});
+            this.startTimeout = setTimeout(() => {
+                usr.start();
+            }, 3000)
+        });
 	}
 
 	addUser(u) {
@@ -367,13 +402,7 @@ class GameRoom {
 		if (!this.roomHasSpace()) {
 			console.log('Room full and ready');
 			this.setupUpdate();
-			Object.keys(this.users).forEach(uid => {
-				let usr = this.users[uid];
-				usr.socket.emit('set-state', {state: GAME_STATES.STARTING});
-				this.startTimeout = setTimeout(() => {
-					usr.start();
-				}, 3000)
-			});
+			this.start();
 		}
 	}
 
@@ -382,7 +411,7 @@ class GameRoom {
 	}
 
 	roomHasSpace() {
-		return this.numUsers() < 3;
+		return this.numUsers() < 2;
 	}
 
 	isEmpty() {
@@ -401,11 +430,11 @@ class GameRoom {
 
 		console.log('Finding new user to replace');
 		this.clearAllIntervals();
-		this.remove();
 		Object.keys(this.users).forEach(uid => {
 			let user = this.users[uid];
-			user.socket.emit('set-state', { state: GAME_STATES.RESET_GAME, reset: true });
-		});
+			user.socket.emit('set-state', { state: GAME_STATES.RESET, reset: true });
+        });
+        this.remove();
 	}
 
 	remove() {
@@ -416,7 +445,6 @@ class GameRoom {
 			let user = this.users[uid];
 			user.room = undefined;
 		});
-		this.users = [];
 		console.log('Room removed');
     }
 
@@ -427,7 +455,7 @@ class GameRoom {
     }
 
 	selectPlayerType() {
-		const availableRoles = [PLAYER_MESSAGE_DROPPER, PLAYER_DICTATOR, PLAYER_COURIER]
+		const availableRoles = [PLAYER_DICTATOR, PLAYER_COURIER]
 			.filter((f) => !this.takenRoles[PLAYER_ROLE_IDX[f]]);
 
 		return availableRoles[Math.floor(Math.random() * availableRoles.length)];
