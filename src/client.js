@@ -201,7 +201,7 @@ pp.getRectCorner = function() {
 pp.checkMove = function (hitbox) {
     for (let i = 0; i < map.length; i++) {
         let b = map[i];
-        if (hasOverlap(hitbox, generateHitbox(b.pos, b.size))) {
+        if (hasOverlap(hitbox, generateHitbox(b.pos, {w: b.size.w + 2, h: b.size.h + 2}))) {
             return false;
         }
     }
@@ -536,7 +536,7 @@ function drawChooseScreen() {
     ctx.fillStyle = 'black';
     ctx.font = 'bold 24px Arial';
     let plysLeft = 1 - EXTERNAL_PLAYERS.length;
-    if (player.type) ctx.fillText(`You are the ${getHumanReadableFromType(player.type)}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
+    if (player && player.type) ctx.fillText(`You are the ${getHumanReadableFromType(player.type)}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
     ctx.fillText(`Waiting for ${plysLeft} more player${plysLeft === 1 ? '' : 's'}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
 
     ctx.restore();
@@ -601,6 +601,7 @@ function updateGameOverScreen() {
         currentGameState = GAME_STATES.RESET;
         resetReason = 'Starting a new game!';
         setTimeout(() => {
+            currentGameState = GAME_STATES.CHOOSING_ROOM;
             socket.emit('find-room');
         }, RESET_TIMEOUT);
     }

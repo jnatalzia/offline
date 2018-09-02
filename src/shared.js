@@ -1,7 +1,7 @@
 "use strict";
 
-const MAP_WIDTH = 2000;
-const MAP_HEIGHT = 2000;
+const MAP_WIDTH = 1000;
+const MAP_HEIGHT = 1000;
 
 const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
@@ -53,8 +53,8 @@ const PLAYER_ROLE_IDX = {
     'DICTATOR': 1
 };
 
-const TICK_TIME = 10;//1000/60;
-const SERVER_UPDATE_TICK = TICK_TIME * 1.75;
+const TICK_TIME = 1000/60;
+const SERVER_UPDATE_TICK = TICK_TIME;
 const MAX_DROPPED_MESSAGES = 3;
 const CIVILIAN_KILL_CAP = 1;
 const PLAYER_WIDTH = 15;
@@ -204,12 +204,15 @@ Bullet.prototype.getHitbox = function() {
     }
 }
 
+const MSG_WIDTH = 20;
+const MSG_HEIGHT = 10;
+
 function Message(x, y, destroy) {
     this.id = genId();
     this.pos = {x: x, y: y};
     this.size = {
-        w: 20,
-        h: 10
+        w: MSG_WIDTH,
+        h: MSG_HEIGHT
     };
     this.coords = [112, 45];
     this.destroy = destroy;
