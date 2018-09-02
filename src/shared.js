@@ -47,17 +47,14 @@ const CIV_NOT_NEIGH = [
 /** Types/Enums */
 const PLAYER_COURIER = 'COURIER';
 const PLAYER_DICTATOR = 'DICTATOR';
-const PLAYER_MESSAGE_DROPPER = 'MSGDROPPER';
 
 const PLAYER_ROLE_IDX = {
-    'MSGDROPPER': 0,
-    'COURIER': 1,
-    'DICTATOR': 2
+    'COURIER': 0,
+    'DICTATOR': 1
 };
 
 const TICK_TIME = 10;//1000/60;
 const SERVER_UPDATE_TICK = TICK_TIME * 1.75;
-const MAX_DROPPED_ARROWS = 6;
 const MAX_DROPPED_MESSAGES = 3;
 const CIVILIAN_KILL_CAP = 1;
 const PLAYER_WIDTH = 15;
@@ -135,32 +132,15 @@ function getAdjustedVel(vel, t) {
 /** Shared draw classes */
 function GroundArrow(x, y, rotation) {
     this.id = genId();
-    this.pos = {x: x, y:y};
+    this.pos = {x: x, y: y};
     this.size = {w: 30, h: 30};
     this.rotation = rotation;
-    this.removing = false;
-    this.opacity = 1;
-}
-
-GroundArrow.prototype.remove = function(cb) {
-    this.removing = true;
-    this.removalCB = cb;
-}
-
-GroundArrow.prototype.update = function() {
-    if (this.opacity <= 0) {
-        this.removalCB && this.removalCB(this);
-        return;
-    }
-    if (this.removing) {
-        this.opacity -= .1;
-    }
 }
 
 GroundArrow.draw = function(pos, rotation, opacity) {
     ctx.save();
     ctx.beginPath();
-    ctx.strokeStyle = 'rgba(0,0,0,' + opacity + ')';
+    ctx.strokeStyle = 'red';
     ctx.lineWidth = 4;
     ctx.translate(pos.x, pos.y);
     ctx.translate(0, -5);

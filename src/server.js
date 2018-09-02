@@ -71,12 +71,10 @@ function createRoom() {
 class GameRoom {
 	constructor(id) {
 		this.users = {};
-		this.takenRoles = [0, 0, 0];
+		this.takenRoles = [0, 0];
 		this.id = id;
 		this.waitingForPlayers = true;
 		this.bullets = [];
-		this.arrows = [];
-		this.activeArrows = 0;
         this.messages = [];
         let map = this.generateMap();
         this.buildings = map.buildings;
@@ -184,23 +182,6 @@ class GameRoom {
 
 	}
 
-	addArrow(pos, rotation) {
-		if (this.activeArrows === MAX_DROPPED_ARROWS) {
-			this.activeArrows--;
-			for (let i = 0; i < this.arrows.length; i++) {
-				if (!this.arrows[i].removing) {
-					var removalIndex = i;
-					break;
-				}
-			}
-			this.arrows[removalIndex].remove(() => {
-				this.arrows.splice(0, 1);
-			});
-		}
-		this.activeArrows++;
-		this.arrows.push(new GroundArrow(pos.x, pos.y, rotation));
-	}
-
 	addBullet(pos, rotation) {
 		const that = this;
         this.bullets.push(new Bullet(pos.x, pos.y, rotation, genRemovalFromArray(that.bullets)));
@@ -242,7 +223,6 @@ class GameRoom {
 			}
 			this.users[uid].socket.emit('game-update', {
 				players: formattedUserData,
-				arrows: this.arrows,
 				bullets: this.bullets,
                 messages: this.messages,
 				civilians: this.civilians,
@@ -259,9 +239,6 @@ class GameRoom {
 		this.bullets.forEach(b => {
 			b.update(timeDiff);
 		});
-		this.arrows.forEach(a => {
-			a.update(timeDiff);
-        });
         this.civilians.forEach(c => {
 			c.update(timeDiff);
 		});
@@ -306,7 +283,7 @@ class GameRoom {
                     bul.remove();
 					shouldBreak = true;
 					if (this.civiliansKilled > CIVILIAN_KILL_CAP) {
-						this.gameOver([PLAYER_COURIER, PLAYER_MESSAGE_DROPPER], GAME_CONDITIONS.CIVILIANS_SHOT);
+						this.gameOver(PLAYER_COURIER, GAME_CONDITIONS.CIVILIANS_SHOT);
 					}
                     break;
                 }
@@ -317,13 +294,13 @@ class GameRoom {
 		}
 	}
 
-	gameOver(winners, reason) {
+	gameOver(winner, reason) {
 		console.log('Ending game');
 		Object.keys(this.users).forEach(k => {
 			let user = this.users[k];
 			console.log('Sending game over to user: ' + user.id);
 			user.socket.emit('game-over', {
-				didWin: winners.indexOf(user.type) !== -1,
+				didWin: winner === user.type,
 				reason: reason
 			});
 		});
@@ -504,9 +481,6 @@ class User {
 		}.bind(this));
 		this.socket.on('fire-bullet', function(data) {
 			this.room.addBullet(data.pos, data.rotation);
-		}.bind(this));
-		this.socket.on('drop-message', function(data) {
-			this.room.addMessage(data.pos);
 		}.bind(this));
 		this.socket.on('destroy-message', function(data) {
 			this.room.deleteMessage(data.id);

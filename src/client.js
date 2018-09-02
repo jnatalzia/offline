@@ -39,8 +39,6 @@ function getClassFromType(type) {
             return Courier;
         case PLAYER_DICTATOR:
             return Dictator;
-        case PLAYER_MESSAGE_DROPPER:
-            return MsgDropper;
     }
 }
 
@@ -50,8 +48,6 @@ function getHumanReadableFromType(type) {
             return 'Courier';
         case PLAYER_DICTATOR:
             return 'Dictator';
-        case PLAYER_MESSAGE_DROPPER:
-            return 'Message Dropper';
     }
 }
 
@@ -66,7 +62,6 @@ let currentGameState = GAME_STATES.PRE_CONNECT;
 let playingGameState = LOWER_PLAYING_STATES.PHASE_ONE;
 let socket;
 let DROPPED_MESSAGES = [];
-let DROPPED_ARROWS = [];
 let FIRED_BULLETS = [];
 let ACTIVE_CIVILIANS = [];
 
@@ -90,7 +85,6 @@ function resetGameState() {
     EXTERNAL_PLAYERS = [];
     EXTERNAL_PLAYER_INDICES = [];
     DROPPED_MESSAGES = [];
-    DROPPED_ARROWS = [];
     FIRED_BULLETS = [];
     ACTIVE_CIVILIANS = [];
 
@@ -98,20 +92,6 @@ function resetGameState() {
     EXTERNAL_PLAYER_INDICES = {};
     didWin = undefined;
     clearInterval(updateInterval);
-}
-
-function addMessage(pos) {
-    // DROPPED_MESSAGES.push(new Message(pos.x, pos.y));
-    socket.emit('drop-message', {pos: pos});
-}
-
-let activeArrows = 0;
-
-function addArrow(pos, rotation) {
-    socket.emit('drop-arrow', {
-        pos: pos,
-        rotation: rotation
-    });
 }
 
 function addBullet(pos, rotation) {
@@ -361,151 +341,6 @@ pp.getHitbox = function() {
     }
 }
 
-function MsgDropper(x, y) {
-    this.super_.apply(this, arguments);
-
-    this.type = PLAYER_MESSAGE_DROPPER;
-    this.canDropMessage = true;
-    this.droppingMessage = false;
-    this.msgDropState = {
-        timeDropped: 0
-    };
-    this.timeToDrop = 1000;
-    this.job = 'Lead the Courier to a Message.';
-    this.controls = this.controls.concat([
-        {key: 'Space', job: 'Hold to Drop a Message'},
-        {key: 'Arrow Keys', job: 'Drops an Arrow to Direct the Courier'},
-        {key: 'L Shift', job: 'Sprint'}
-    ]);
-}
-inherits(MsgDropper, Player);
-let mp = MsgDropper.prototype;
-mp.update = function(t) {
-    this.super_.prototype.update.call(this, t);
-
-    this.handleMessageDropping(t);
-    this.handleArrowDropping(t);
-}
-
-mp.addEventHandlers = function () {
-    this.super_.prototype.addEventHandlers.apply(this, arguments);
-}
-
-mp.handleArrowDropping = function(t) {
-    let LEFT_PRESSED = KEY_CHECKER[37];
-    let UP_PRESSED = KEY_CHECKER[38];
-    let RIGHT_PRESSED = KEY_CHECKER[39];
-    let DOWN_PRESSED = KEY_CHECKER[40];
-
-    let nonePressed = ![LEFT_PRESSED, UP_PRESSED, RIGHT_PRESSED, DOWN_PRESSED].some(function(el) { return !!el; });
-    if (nonePressed) {
-        this.freezeArrowDrop = false;
-        return;
-    }
-
-    if (this.freezeArrowDrop) {
-        return;
-    }
-
-    // Early exit first cycle to allow time for simultaneous button pressing
-    if (!this.awaitingDrop) {
-        this.awaitingDrop = true;
-        return;
-    }
-
-    this.awaitingDrop = false;
-
-    // Down -- Default
-    let rotation = 0;
-
-    if (LEFT_PRESSED && UP_PRESSED) {
-        rotation = .75 * Math.PI;
-    } else if (LEFT_PRESSED && DOWN_PRESSED) {
-        rotation = .25 * Math.PI;
-    } else if (LEFT_PRESSED) {
-        rotation = .5 * Math.PI;
-    } else if (RIGHT_PRESSED && UP_PRESSED) {
-        rotation = 1.25 * Math.PI;
-    } else if (RIGHT_PRESSED && DOWN_PRESSED) {
-        rotation = 1.75 * Math.PI;
-    } else if (RIGHT_PRESSED) {
-        rotation = 1.5 * Math.PI;
-    } else if (UP_PRESSED) {
-        rotation = 1 * Math.PI;
-    }
-
-    this.dropArrow(rotation);
-}
-
-mp.handleMessageDropping = function(t) {
-    if (this.freezeMsgDrop && !KEY_CHECKER[32]) {
-        this.freezeMsgDrop = false;
-    }
-
-    this.updateCanDrop();
-
-    if (KEY_CHECKER[32] && !this.droppingMessage && this.canDropMessage) {
-        this.droppingMessage = true;
-    }
-
-    if (this.droppingMessage) {
-        if (!KEY_CHECKER[32] || !this.canDropMessage) {
-            this.msgDropState.timeDropped = 0;
-            this.droppingMessage = false;
-            return;
-        }
-
-        this.msgDropState.timeDropped += t;
-        if (this.msgDropState.timeDropped >= this.timeToDrop) {
-            this.dropMessage();
-        }
-    }
-}
-
-mp.updateCanDrop = function() {
-    const canDrop =
-        DROPPED_MESSAGES.length < MAX_DROPPED_MESSAGES &&
-        !Array.prototype.some.call([65,87,68,83], function(i) { return KEY_CHECKER[i] }) &&
-        !this.freezeMsgDrop;
-
-    this.canDropMessage = canDrop;
-}
-
-mp.dropMessage = function() {
-    addMessage(this.pos);
-    this.msgDropState.timeDropped = 0;
-    this.droppingMessage = false;
-    this.freezeMsgDrop = true;
-}
-
-mp.dropArrow = function(rotation) {
-    addArrow(this.pos, rotation);
-    this.freezeArrowDrop = true;
-}
-
-mp.drawUI = function() {
-    this.super_.prototype.drawUI.apply(this, arguments);
-
-    ctx.save();
-
-    ctx.strokeStyle = '#00348F';
-    ctx.fillStyle = '#00348F';
-    ctx.lineWidth = 2;
-    ctx.fillRect(10, 10, 100 * (this.msgDropState.timeDropped / this.timeToDrop), 20);
-    ctx.strokeRect(10, 10, 100, 20);
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = DROPPED_MESSAGES.length === MAX_DROPPED_MESSAGES ? 'red' : 'black';
-    ctx.font = 'bold 12px Arial';
-    ctx.fillText(`${DROPPED_MESSAGES.length}/${MAX_DROPPED_MESSAGES} dropped.`, 100/2 + 10, 40);
-
-    ctx.restore();
-}
-
-mp.startPhaseTwo = function() {
-    this.job = 'Misdirect the Dictator to get the Courier Back to Base!';
-}
-
 function Courier(x, y) {
     this.super_.apply(this, arguments);
 
@@ -635,8 +470,6 @@ function updateGameStateFromServer(data) {
         internalP.pos = p.pos;
         internalP.vel = p.vel;
     });
-    /** Update arrows */
-    DROPPED_ARROWS = data.arrows;
     /** Update Bullets */
     FIRED_BULLETS = data.bullets;
     /** Update Messages */
