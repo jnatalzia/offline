@@ -24,8 +24,8 @@ for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedHeight; i += GRID_INTERVAL) {
     BUILD_Y_OPTS.push(i);
 }
 
-const X_CHUNKS = 4;
-const Y_CHUNKS = 4;
+const X_CHUNKS = 6;
+const Y_CHUNKS = 6;
 
 const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
 const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
@@ -81,7 +81,6 @@ class GameRoom {
 		this.civilians = [];
 		this.civiliansKilled = 0;
 		this.prevTime = Date.now();
-        this.lowerPlayerState = LOWER_PLAYING_STATES.PHASE_ONE;
 		for (let i = 0; i < CIVILIANS_PER_ROOM; i++) {
 			let civ = this.genCivilian();
             this.civilians.push(civ);
@@ -162,10 +161,16 @@ class GameRoom {
 
         const building = new Building(bx, by, bw, bh);
         return building;
-    }
+	}
 
-    generateMessage(number) {
-        console.log('Generating a message');
+	generateMessage(number) {
+		console.log(`Generating ${number} messages`);
+		for (let i = 0; i < number; i++) {
+			this.addMessage(this.getUnconflictedDistantPos({w: MSG_WIDTH, h: MSG_HEIGHT}));
+		}
+	}
+
+    getUnconflictedDistantPos(size) {
         let takenChunks = Object.keys(this.users).reduce((acc, uKey) => {
             let user = this.users[uKey];
             acc.x.push(Math.floor(user.pos.x / (MAP_WIDTH / X_CHUNKS)));
@@ -179,23 +184,21 @@ class GameRoom {
             if (takenChunks.y.indexOf(num) === -1) chunkChoices.y.push(num);
         });
 
-        for (let i = 0; i < number; i++) {
-            let xChunk = getRandomEntryInArr(chunkChoices.x);
-            let yChunk = getRandomEntryInArr(chunkChoices.y);
-            let xPos = getRandomEntryInArr(BUILD_X_OPTS.slice((xChunk * X_INTERVALS_PER_CHUNK), (xChunk * X_INTERVALS_PER_CHUNK) + X_INTERVALS_PER_CHUNK));
-            let yPos = getRandomEntryInArr(BUILD_Y_OPTS.slice((yChunk * Y_INTERVALS_PER_CHUNK), (yChunk * Y_INTERVALS_PER_CHUNK) + Y_INTERVALS_PER_CHUNK));
+        let xChunk = getRandomEntryInArr(chunkChoices.x);
+		let yChunk = getRandomEntryInArr(chunkChoices.y);
+		let xPos = getRandomEntryInArr(BUILD_X_OPTS.slice((xChunk * X_INTERVALS_PER_CHUNK), (xChunk * X_INTERVALS_PER_CHUNK) + X_INTERVALS_PER_CHUNK));
+		let yPos = getRandomEntryInArr(BUILD_Y_OPTS.slice((yChunk * Y_INTERVALS_PER_CHUNK), (yChunk * Y_INTERVALS_PER_CHUNK) + Y_INTERVALS_PER_CHUNK));
 
-            while(
-                this.buildings.some(b => hasOverlap(generateHitbox({x: xPos,y: yPos}, {w: MSG_WIDTH, h: MSG_HEIGHT}), b.getHitbox()))
-            ) {
-                xPos = getRandomEntryInArr(BUILD_X_OPTS.slice((xChunk * X_INTERVALS_PER_CHUNK), (xChunk * X_INTERVALS_PER_CHUNK) + X_INTERVALS_PER_CHUNK));
-                yPos = getRandomEntryInArr(BUILD_Y_OPTS.slice((yChunk * Y_INTERVALS_PER_CHUNK), (yChunk * Y_INTERVALS_PER_CHUNK) + Y_INTERVALS_PER_CHUNK));
-            }
-            this.addMessage({
-                x: xPos,
-                y: yPos
-            });
-        }   
+		while(
+			this.buildings.some(b => hasOverlap(generateHitbox({x: xPos,y: yPos}, {w: size.w, h: size.h}), b.getHitbox()))
+		) {
+			xPos = getRandomEntryInArr(BUILD_X_OPTS.slice((xChunk * X_INTERVALS_PER_CHUNK), (xChunk * X_INTERVALS_PER_CHUNK) + X_INTERVALS_PER_CHUNK));
+			yPos = getRandomEntryInArr(BUILD_Y_OPTS.slice((yChunk * Y_INTERVALS_PER_CHUNK), (yChunk * Y_INTERVALS_PER_CHUNK) + Y_INTERVALS_PER_CHUNK));
+		}
+		return {
+			x: xPos,
+			y: yPos
+		};
     }
 
 	addMessage(pos) {
@@ -213,11 +216,6 @@ class GameRoom {
 		let msg = this.messages.filter((m) => m.id === id)[0];
 		if (msg) {
             msg.destroy();
-            
-            console.log('Replacing message');
-            this.messageTimeout = setTimeout(() => {
-                this.generateMessage();
-            }, (Math.random() * 1500) + 1500);
 		}
         console.log(this.messages.length + " messages left");
 
@@ -389,9 +387,10 @@ class GameRoom {
             let usr = this.users[uid];
             usr.socket.emit('set-state', {state: GAME_STATES.STARTING});
             this.startTimeout = setTimeout(() => {
-                usr.start();
+				usr.start();
+				// this.startPhaseTwo(); // TEST
             }, 3000)
-        });
+		});
 	}
 
 	addUser(u) {
@@ -474,11 +473,16 @@ class GameRoom {
 
 		return availableRoles[Math.floor(Math.random() * availableRoles.length)];
 	}
+
+	determineCourierDest() {
+		return this.getUnconflictedDistantPos(DEST_SIZE);
+	}
+
 	startPhaseTwo() {
-		this.lowerPlayerState = LOWER_PLAYING_STATES.PHASE_TWO;
+		this.courierDest = this.determineCourierDest();
 
 		Object.keys(this.users).forEach(uid => {
-			this.users[uid].socket.emit('start-phase-two', { state: LOWER_PLAYING_STATES.PHASE_TWO });
+			this.users[uid].socket.emit('start-phase-two', { destination: this.courierDest });
 		});
 	}
 }
@@ -528,6 +532,10 @@ class User {
 			this.room.deleteMessage(data.id);
 			if (data.courier) {
 				this.room.startPhaseTwo();
+			} else {
+				this.messageTimeout = setTimeout(() => {
+					this.generateMessage(1);
+				}, (Math.random() * 1500) + 1500);
 			}
 		}.bind(this));
 		this.socket.on('find-room', () => {

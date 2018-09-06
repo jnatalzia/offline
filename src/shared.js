@@ -1,7 +1,7 @@
 "use strict";
 
-const MAP_WIDTH = 1000;
-const MAP_HEIGHT = 1000;
+const MAP_WIDTH = 3000;
+const MAP_HEIGHT = 3000;
 
 const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
@@ -15,11 +15,6 @@ const GAME_STATES = {
     PRE_CONNECT: 4,
     GAME_OVER: 5,
     RESET: 6
-};
-
-const LOWER_PLAYING_STATES = {
-    PHASE_ONE: 0,
-    PHASE_TWO: 1
 };
 
 const GAME_CONDITIONS = {
@@ -43,6 +38,8 @@ const CIV_NOT_NEIGH = [
     [DIR_N, DIR_NE, DIR_E, DIR_NW, DIR_SE],
     [DIR_N, DIR_NW, DIR_W, DIR_SW, DIR_NE]
 ];
+
+const DEST_SIZE = {w: 40, h: 40};
 
 /** Types/Enums */
 const PLAYER_COURIER = 'COURIER';
@@ -129,6 +126,10 @@ function getAdjustedVel(vel, t) {
     };
 }
 
+function adjustArrowRotation(rot) {
+    return rot + (1.5 * Math.PI);
+}
+
 /** Shared draw classes */
 function GroundArrow(x, y, rotation) {
     this.id = genId();
@@ -137,10 +138,11 @@ function GroundArrow(x, y, rotation) {
     this.rotation = rotation;
 }
 
-GroundArrow.draw = function(pos, rotation, opacity) {
+GroundArrow.draw = function(pos, rotation) {
     ctx.save();
     ctx.beginPath();
     ctx.strokeStyle = 'red';
+    ctx.fillStyle = 'red';
     ctx.lineWidth = 4;
     ctx.translate(pos.x, pos.y);
     ctx.translate(0, -5);
@@ -157,7 +159,6 @@ GroundArrow.draw = function(pos, rotation, opacity) {
 
     ctx.scale(1.4,1.4);
     ctx.stroke();
-    // ctx.stroke();
     ctx.restore();
 }
 
@@ -265,7 +266,7 @@ function Civilian(x, y, buildings, removeCB) {
     this.pos = { x: x, y: y };
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
     this.vel = {x: 0, y: 0};
-    this.speed = 1.25;
+    this.speed = 2;
     this.remove = removeCB;
     this.timeWaited = 0;
     this.buildings = buildings;

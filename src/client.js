@@ -59,7 +59,6 @@ let killedCivilians = 0;
 let globalTime = 0;
 let userID;
 let currentGameState = GAME_STATES.PRE_CONNECT;
-let playingGameState = LOWER_PLAYING_STATES.PHASE_ONE;
 let socket;
 let DROPPED_MESSAGES = [];
 let FIRED_BULLETS = [];
@@ -81,7 +80,6 @@ function resetGameState() {
     killedCivilians = 0;
     globalTime = 0;
     userID = undefined;
-    playingGameState = LOWER_PLAYING_STATES.PHASE_ONE;
     EXTERNAL_PLAYERS = [];
     EXTERNAL_PLAYER_INDICES = [];
     DROPPED_MESSAGES = [];
@@ -122,7 +120,7 @@ function Player(x, y, isNotPlayer) {
     this.pos = { x: x, y: y };
     this.vel = {x: 0 ,y: 0};
     this.size = { w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
-    this.speed = 1.25;
+    this.speed = this.origSpeed = 2;
     this.isPlayer = !isNotPlayer;
     this.job = 'Do a thing.';
     this.fillStyle = 'blue';
@@ -375,8 +373,9 @@ cp.update = function(t) {
     }
 }
 
-cp.startPhaseTwo = function() {
-    this.speed *= 1.6;
+cp.startPhaseTwo = function(data) {
+    this.speed = this.origSpeed * 1.6;
+    this.destination = data.destination;
     this.job = 'Get Back to the Base!';
 }
 
@@ -390,6 +389,22 @@ cp.canPickUp = function(msg) {
 
 cp.getAdjustedSpeed = function(t) {
     return this.speed;
+}
+
+cp.drawUI = function() {
+    this.super_.prototype.drawUI.apply(this, arguments);
+
+    ctx.save();
+
+    if (this.destination) {
+        let arrowRot = adjustArrowRotation(Math.atan2((this.destination.y - this.pos.y), (this.destination.x - this.pos.x)));
+        GroundArrow.draw(
+            {x: CANVAS_WIDTH - 40, y: 45},
+            arrowRot
+        );
+    }
+
+    ctx.restore();
 }
 
 function Dictator(x, y, isNotPlayer) {
@@ -452,10 +467,22 @@ dp.drawUI = function() {
     ctx.fillText(`${killedCivilians}/${CIVILIAN_KILL_CAP} Civilians Killed.`, 100/2 + 10, 30);
 
     ctx.restore();
+
+    if (this.trackingCourier) {
+        if (!getNearObjects([EXTERNAL_PLAYERS[0]]).length) {
+            let cou = EXTERNAL_PLAYERS[0]; // change me when we get three back
+            let arrowRot = adjustArrowRotation(Math.atan2((cou.pos.y - this.pos.y), (cou.pos.x - this.pos.x)));
+            GroundArrow.draw(
+                {x: CANVAS_WIDTH - 40, y: 45},
+                arrowRot
+            );
+        }
+    }
 }
 
 dp.startPhaseTwo = function() {
     this.job = 'The courier is running! Kill them before they get back to base.';
+    this.trackingCourier = true;
 }
 
 dp.remove = function() {
@@ -545,6 +572,7 @@ function drawChooseScreen() {
 function updateMainMenu() {
     if (KEY_CHECKER[32]) {
         currentGameState = GAME_STATES.LOADING;
+        console.log('Connecting socket');
         connectSocket();
     }
 }
@@ -626,7 +654,7 @@ function clearBoard() {
 }
 
 function getNearObjects(arr) {
-    let viewHB = generateHitbox({x: player.pos.x, y: player.pos.y}, {w: MAP_WIDTH, h: MAP_HEIGHT});
+    let viewHB = generateHitbox({x: player.pos.x, y: player.pos.y}, {w: CANVAS_WIDTH, h: CANVAS_HEIGHT});
     return arr.filter(obj => {
         let obhb = generateHitbox(obj.pos, obj.size);
         return hasOverlap(viewHB, obhb);
@@ -638,6 +666,14 @@ function drawBackground(t) {
     ctx.translate(-player.pos.x + CANVAS_WIDTH/2,-player.pos.y + CANVAS_HEIGHT/2)
     ctx.fillStyle = '#ccc';
     ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+    if (player.type === PLAYER_COURIER && player.destination) {
+        ctx.fillStyle = 'red';
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.fillRect(player.destination.x - DEST_SIZE.w/2, player.destination.y - DEST_SIZE.h/2, DEST_SIZE.w, DEST_SIZE.h);
+        ctx.strokeRect(player.destination.x - DEST_SIZE.w/2, player.destination.y - DEST_SIZE.h/2, DEST_SIZE.w, DEST_SIZE.h);
+    }
 
     let allObjects = [
         [FIRED_BULLETS, drawBullets],
@@ -666,12 +702,6 @@ function drawBuildings(buildings) {
 }
 function drawMessages(msgs) {
     genericObjectDraw(msgs, Message);
-}
-function drawArrows(arrs) {
-    for (let arrow = 0; arrow < arrs.length; arrow++) {
-        let drawData = arrs[arrow];
-        GroundArrow.draw(drawData.pos, drawData.rotation, drawData.opacity);
-    }
 }
 function drawBullets(bulls, t) {
     for (let bullet = 0; bullet < bulls.length; bullet++) {
@@ -763,9 +793,9 @@ function connectSocket() {
         player = new type(-1, -1);
     });
 
-    socket.on('start-phase-two', function() {
+    socket.on('start-phase-two', function(data) {
         globalGameGoal = 'The Courier has the Message!';
-        player.startPhaseTwo();
+        player.startPhaseTwo(data);
     });
 
     socket.on('game-over', data => {
