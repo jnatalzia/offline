@@ -234,6 +234,7 @@ pp.checkMoveRight = function(adjSpeed) {
 pp.draw = function() {
     ctx.save();
     ctx.translate(CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.rect(-this.size.w/2, -this.size.h/2, this.size.w, this.size.h);
     ctx.fillStyle = this.fillStyle;

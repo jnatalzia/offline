@@ -422,6 +422,7 @@ civProto.canWalkHere = function(x, y) {
 
 Civilian.draw = function(pos, size) {
     ctx.save();
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.rect(pos.x-size.w/2, pos.y-size.h/2, size.w, size.h);
     ctx.fillStyle = '#fff';

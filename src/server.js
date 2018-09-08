@@ -396,7 +396,6 @@ class GameRoom {
             usr.socket.emit('set-state', {state: GAME_STATES.STARTING});
             this.startTimeout = setTimeout(() => {
 				usr.start();
-				this.startPhaseTwo(); // TEST
             }, 3000)
 		});
 	}
