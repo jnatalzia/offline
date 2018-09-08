@@ -618,6 +618,8 @@ function getGameOverReasonText() {
             return 'Too many civilians died.';
         case GAME_CONDITIONS.SHOT_COURIER:
             return 'The courier has been shot!';
+        case GAME_CONDITIONS.COURIER_UNHARMED:
+            return 'The courier made it to the destination unharmed.';
         default:
             return 'Unknown win reason.';
     }

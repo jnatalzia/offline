@@ -282,6 +282,14 @@ class GameRoom {
 			c.update(timeDiff);
 		});
 
+		// win conditino
+		let uKeys = Object.keys(this.users);
+		let cou = this.users[uKeys.filter(u => this.users[u].type === PLAYER_COURIER)[0]];
+		if (this.isPhaseTwo
+			&& hasOverlap(generateHitbox(cou.pos, {w: PLAYER_WIDTH, h: PLAYER_HEIGHT}), generateHitbox(this.courierDest, DEST_SIZE))) {
+			this.gameOver(PLAYER_COURIER, GAME_CONDITIONS.COURIER_UNHARMED);
+		}
+
 		this.prevTime = currTime;
     }
 
@@ -388,7 +396,7 @@ class GameRoom {
             usr.socket.emit('set-state', {state: GAME_STATES.STARTING});
             this.startTimeout = setTimeout(() => {
 				usr.start();
-				// this.startPhaseTwo(); // TEST
+				this.startPhaseTwo(); // TEST
             }, 3000)
 		});
 	}
@@ -484,6 +492,8 @@ class GameRoom {
 		Object.keys(this.users).forEach(uid => {
 			this.users[uid].socket.emit('start-phase-two', { destination: this.courierDest });
 		});
+
+		this.isPhaseTwo = true;
 	}
 }
 

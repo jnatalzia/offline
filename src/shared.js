@@ -20,7 +20,8 @@ const GAME_STATES = {
 const GAME_CONDITIONS = {
     CIVILIANS_SHOT: 0,
     GOT_TO_BASE: 1,
-    SHOT_COURIER: 2
+    SHOT_COURIER: 2,
+    COURIER_UNHARMED: 3
 };
 
 const CIV_VELOCITIES = [1.5, .5, 0, 1, 1.75, 1.25, .75, .25].map(r => {
