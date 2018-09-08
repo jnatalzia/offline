@@ -543,7 +543,7 @@ class User {
 				this.room.startPhaseTwo();
 			} else {
 				this.messageTimeout = setTimeout(() => {
-					this.generateMessage(1);
+					this.room.generateMessage(1);
 				}, (Math.random() * 1500) + 1500);
 			}
 		}.bind(this));
