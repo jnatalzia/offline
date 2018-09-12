@@ -1,7 +1,7 @@
 "use strict";
 
-const MAP_WIDTH = 3000;
-const MAP_HEIGHT = 3000;
+const MAP_WIDTH = 2000;
+const MAP_HEIGHT = 2000;
 
 const DIR_N=0,DIR_S=1,DIR_E=2,DIR_W=3,DIR_NE=4,DIR_NW=5,DIR_SW=6,DIR_SE=7;
 
@@ -82,8 +82,8 @@ for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedHeight; i += GRID_INTERVAL) {
     BUILD_Y_OPTS.push(i);
 }
 
-const X_CHUNKS = 6;
-const Y_CHUNKS = 6;
+const X_CHUNKS = 4;
+const Y_CHUNKS = 4;
 
 const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
 const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
