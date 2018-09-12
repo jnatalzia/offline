@@ -67,6 +67,29 @@ const min = Math.min;
 const pow = Math.pow;
 const sqrt = Math.sqrt;
 
+/** Shared constants */
+let BUILDING_WIDTHS = [0, 1, 2, 3, 4, 5, 6].map(n => 75 + (n*GRID_INTERVAL));
+let MAX_BUILDING_WIDTH = BUILDING_WIDTHS[BUILDING_WIDTHS.length - 1];
+
+let BUILD_X_OPTS = [];
+let adjustedWidth = Math.floor(MAP_WIDTH - MAX_BUILDING_WIDTH / 2);
+for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedWidth; i += GRID_INTERVAL) {
+    BUILD_X_OPTS.push(i);
+}
+let adjustedHeight = Math.floor(MAP_HEIGHT - MAX_BUILDING_WIDTH / 2);
+let BUILD_Y_OPTS = [];
+for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedHeight; i += GRID_INTERVAL) {
+    BUILD_Y_OPTS.push(i);
+}
+
+const X_CHUNKS = 6;
+const Y_CHUNKS = 6;
+
+const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
+const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
+
+const NUM_BUILDINGS = X_CHUNKS * Y_CHUNKS;
+
 /** Utils */
 function genId() {
 	return Math.random().toString(36).substring(7);
@@ -207,7 +230,7 @@ Bullet.prototype.getHitbox = function() {
 }
 
 const MSG_WIDTH = 20;
-const MSG_HEIGHT = 10;
+const MSG_HEIGHT = 15;
 
 function Message(x, y, destroy) {
     this.id = genId();
@@ -229,6 +252,13 @@ Message.draw = function(pos, size) {
     ctx.rect(pos.x - size.w/2, pos.y - size.h/2, size.w, size.h);
     ctx.fill();
     ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(pos.x - size.w/2, pos.y - size.h/2);
+    ctx.lineTo(pos.x, pos.y + size.h/4);
+    ctx.lineTo(pos.x + size.w/2, pos.y - size.h/2);
+    ctx.stroke();
+
     ctx.restore();
 }
 
@@ -243,12 +273,6 @@ function Building(x, y, w, h) {
     this.pos = {x: x, y: y};
     this.size = {w: w, h: h};
     this.id = genId();
-}
-
-Building.draw = function(pos, size) {
-    ctx.fillStyle = '#000';
-    ctx.lineWidth = 0;
-    ctx.fillRect(pos.x - size.w / 2, pos.y - size.h / 2, size.w, size.h);
 }
 
 Building.prototype.getHitbox = function () {

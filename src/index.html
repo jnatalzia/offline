@@ -6,14 +6,19 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Document</title>
     <style>
-        canvas {
+        .main-canvas {
             border: 2px solid #000;
             cursor: none;
+        }
+        .pattern-canvas {
+            border: 2px solid blueviolet;
         }
     </style>
 </head>
 <body>
-    <canvas></canvas>
+    <input type="color" />
+    <canvas class='pattern-canvas'></canvas>
+    <canvas class='main-canvas'></canvas>
     <script src="/socket.io/socket.io.js"></script>
     <script src="shared.js"></script>
     <script src="client.js"></script>

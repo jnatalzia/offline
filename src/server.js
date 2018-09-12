@@ -9,29 +9,6 @@ const ROOMS = {
 
 };
 
-/** Server constants */
-let BUILDING_WIDTHS = [0, 1, 2, 3, 4, 5, 6].map(n => 75 + (n*GRID_INTERVAL));
-let MAX_BUILDING_WIDTH = BUILDING_WIDTHS[BUILDING_WIDTHS.length - 1];
-
-let BUILD_X_OPTS = [];
-let adjustedWidth = Math.floor(MAP_WIDTH - MAX_BUILDING_WIDTH / 2);
-for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedWidth; i += GRID_INTERVAL) {
-    BUILD_X_OPTS.push(i);
-}
-let adjustedHeight = Math.floor(MAP_HEIGHT - MAX_BUILDING_WIDTH / 2);
-let BUILD_Y_OPTS = [];
-for (let i = MAX_BUILDING_WIDTH / 2; i < adjustedHeight; i += GRID_INTERVAL) {
-    BUILD_Y_OPTS.push(i);
-}
-
-const X_CHUNKS = 6;
-const Y_CHUNKS = 6;
-
-const X_INTERVALS_PER_CHUNK = Math.floor(BUILD_X_OPTS.length / X_CHUNKS);
-const Y_INTERVALS_PER_CHUNK = Math.floor(BUILD_Y_OPTS.length / Y_CHUNKS);
-
-const NUM_BUILDINGS = X_CHUNKS * Y_CHUNKS;
-
 /**
  * Remove user session
  * @param {User} user
@@ -345,8 +322,6 @@ class GameRoom {
 		console.log('Ending game');
 		Object.keys(this.users).forEach(k => {
 			let user = this.users[k];
-            console.log('Sending game over to user: ' + user.id);
-            console.log('Did win: ' + winner === user.type);
 			user.socket.emit('game-over', {
 				didWin: winner === user.type,
 				reason: reason
@@ -394,10 +369,14 @@ class GameRoom {
         Object.keys(this.users).forEach(uid => {
             let usr = this.users[uid];
             usr.socket.emit('set-state', {state: GAME_STATES.STARTING});
-            this.startTimeout = setTimeout(() => {
-				usr.start();
-            }, 3000)
 		});
+
+		this.startTimeout = setTimeout(() => {
+			Object.keys(this.users).forEach(uid => {
+				let usr = this.users[uid];
+				usr.start();
+			});
+		}, 3000)
 	}
 
 	addUser(u) {
@@ -442,7 +421,6 @@ class GameRoom {
 		console.log('Removing user with id: ' + u.id)
 		this.takenRoles[PLAYER_ROLE_IDX[u.type]] = 0;
 		Object.keys(this.users).forEach(uid => {
-			console.log('Sending player removed to id: ' + uid);
 			this.users[uid].socket.emit('player-removed', { id: u.id });
 		});
 		console.log('Deleted user from room: ' + this.id + ', key count: ' + this.numUsers());
@@ -486,13 +464,18 @@ class GameRoom {
 	}
 
 	startPhaseTwo() {
+		console.log('Beginning Phase Two');
 		this.courierDest = this.determineCourierDest();
+		console.log('Deleting all messages');
+		this.messages = [];
+		clearTimeout(this.messageTimeout);
 
 		Object.keys(this.users).forEach(uid => {
 			this.users[uid].socket.emit('start-phase-two', { destination: this.courierDest });
 		});
 
 		this.isPhaseTwo = true;
+		console.log('Phase two started');
 	}
 }
 

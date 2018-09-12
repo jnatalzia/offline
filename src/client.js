@@ -1,5 +1,5 @@
 /** Global constants */
-const canvas = document.querySelector('canvas');
+const canvas = document.querySelector('.main-canvas');
 const ctx = canvas.getContext('2d');
 
 const CANVAS_WIDTH = 800;
@@ -11,6 +11,7 @@ const BOTTOM_UI_Y = CANVAS_HEIGHT - BOTTOM_UI_HEIGHT;
 const CURSOR_RADIUS = 10;
 
 const KEY_CHECKER = {};
+const DRAWING_PATTERNS = {};
 
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
@@ -47,7 +48,7 @@ function getHumanReadableFromType(type) {
         case PLAYER_COURIER:
             return 'Courier';
         case PLAYER_DICTATOR:
-            return 'Dictator';
+            return 'Officer';
     }
 }
 
@@ -63,6 +64,8 @@ let socket;
 let DROPPED_MESSAGES = [];
 let FIRED_BULLETS = [];
 let ACTIVE_CIVILIANS = [];
+let map;
+let grass;
 
 let EXTERNAL_PLAYERS = [];
 let EXTERNAL_PLAYER_INDICES = {};
@@ -115,6 +118,29 @@ function inherits (ctor, superCtor) {
   });
 };
 
+function loadDrawingPatterns() {
+    let can2 = document.querySelector('.pattern-canvas');
+    can2.width = 14;
+    can2.height = 14;
+    let ctx2 = can2.getContext('2d');
+    ctx2.fillStyle = '#eeeeee';
+    ctx2.fillRect(0, 0, 14, 14);
+
+    ctx2.beginPath();
+    ctx2.moveTo(7, 0);
+    ctx2.lineTo(14, 7);
+    ctx2.lineTo(7, 14);
+    ctx2.lineTo(0, 7);
+    ctx2.closePath();
+    ctx2.strokeStyle = '#555555';
+    ctx2.lineWidth = 1.25;
+    ctx2.stroke();
+
+    DRAWING_PATTERNS.Building = ctx2.createPattern(can2, 'repeat');
+
+    ctx2.clearRect(0, 0, 14, 14);
+}
+
 /** Player Class */
 function Player(x, y, isNotPlayer) {
     this.pos = { x: x, y: y };
@@ -123,7 +149,7 @@ function Player(x, y, isNotPlayer) {
     this.speed = this.origSpeed = 2;
     this.isPlayer = !isNotPlayer;
     this.job = 'Do a thing.';
-    this.fillStyle = 'blue';
+    this.fillStyle = '#509099';
     this.controls = [
         { key: 'WSAD', job: 'Moves the Player' }
     ]
@@ -141,7 +167,7 @@ pp.addEventHandlers = function() {
 }
 
 pp.die = function() {
-    console.log('You died betch');
+
 }
 
 pp.getAdjustedSpeed = function(t) {
@@ -247,6 +273,7 @@ pp.draw = function() {
 pp.absoluteDraw = function(t) {
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.rect(-this.size.w/2, -this.size.h/2, this.size.w, this.size.h);
     ctx.fillStyle = player.type === PLAYER_DICTATOR ? '#fff' : this.fillStyle;
@@ -259,10 +286,6 @@ pp.absoluteDraw = function(t) {
 pp.drawUI = function() {
     this.drawBottomUI();
     this.drawTopUI();
-
-    // Top left white box
-    ctx.fillStyle = 'rgba(255,255,255,.6)';
-    ctx.fillRect(0, 0, 120, 55);
 }
 
 pp.drawTopUI = function() {
@@ -283,7 +306,7 @@ pp.drawTopUI = function() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'black';
-    ctx.font = 'bold 16px Arial';
+    ctx.font = 'bold 16px Courier New';
     ctx.fillText(globalGameGoal, CANVAS_WIDTH/2, 25);
 
     ctx.restore();
@@ -311,7 +334,7 @@ pp.drawBottomUI = function () {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'black';
-    ctx.font = 'bold 16px Arial';
+    ctx.font = 'bold 16px Courier New';
     ctx.fillText(this.job, CANVAS_WIDTH/2, BOTTOM_UI_Y + 75/2);
 
     ctx.restore();
@@ -327,7 +350,7 @@ pp.drawControls = function() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'black';
-    ctx.font = 'bold 12px Arial';
+    ctx.font = 'bold 12px Courier New';
     ctx.fillText(controlsString, CANVAS_WIDTH/2, BOTTOM_UI_Y + 75 * 1.5);
 }
 
@@ -412,7 +435,7 @@ function Dictator(x, y, isNotPlayer) {
     this.super_.apply(this, arguments);
     this.type = PLAYER_DICTATOR;
     this.job = 'Find and Eliminate the Courier. Do not shoot more than 1 civilian.';
-    this.fillStyle = 'red';
+    this.fillStyle = '#8b161a';
     this.controls = this.controls.concat([
         {key: 'Space', job: 'Press to Destroy up a Message'},
         {key: 'Click', job: 'Shoot'},
@@ -459,12 +482,14 @@ dp.fireBullet = function() {
 
 dp.drawUI = function() {
     this.super_.prototype.drawUI.apply(this, arguments);
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.fillRect(0, 0, 120, 55);
 
     ctx.save();
 
     ctx.textAlign = 'center';
     ctx.fillStyle = killedCivilians > 0 ? 'red': 'black';
-    ctx.font = 'bold 12px Arial';
+    ctx.font = 'bold 10px Courier New';
     ctx.fillText(`${killedCivilians}/${CIVILIAN_KILL_CAP} Civilians Killed.`, 100/2 + 10, 30);
 
     ctx.restore();
@@ -489,6 +514,15 @@ dp.startPhaseTwo = function() {
 dp.remove = function() {
     this.super_.prototype.drawUI.apply(this, arguments);
     canvas.removeEventListener('click', this.boundClickHandler);
+}
+
+/** Drawing Funcs */
+Building.draw = function(pos, size) {
+    ctx.fillStyle = DRAWING_PATTERNS.Building;
+    ctx.strokeStyle = '#555555';
+    ctx.lineWidth = 0;
+    ctx.fillRect(pos.x - size.w / 2, pos.y - size.h / 2, size.w, size.h);
+    ctx.strokeRect(pos.x - size.w / 2, pos.y - size.h / 2, size.w, size.h);
 }
 
 function updateGameStateFromServer(data) {
@@ -562,7 +596,7 @@ function drawChooseScreen() {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = 'black';
-    ctx.font = 'bold 24px Arial';
+    ctx.font = 'bold 24px Courier New';
     let plysLeft = 1 - EXTERNAL_PLAYERS.length;
     if (player && player.type) ctx.fillText(`You are the ${getHumanReadableFromType(player.type)}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
     ctx.fillText(`Waiting for ${plysLeft} more player${plysLeft === 1 ? '' : 's'}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
@@ -584,7 +618,7 @@ function drawMainMenu() {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'black';
     ctx.textBaseline = 'middle';
-    ctx.font = 'bold 24px Arial';
+    ctx.font = 'bold 24px Courier New';
     ctx.fillText(`Press Space to join an available room.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
     ctx.restore();
 }
@@ -595,7 +629,7 @@ function drawResetScreen() {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'black';
     ctx.textBaseline = 'middle';
-    ctx.font = 'bold 24px Arial';
+    ctx.font = 'bold 24px Courier New';
     ctx.fillText(`${resetReason} Finding you a new room in ${RESET_TIMEOUT/1000} seconds`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
     ctx.restore();
 }
@@ -606,7 +640,7 @@ function drawPregame() {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = 'black';
-    ctx.font = 'bold 24px Arial';
+    ctx.font = 'bold 24px Courier New';
     ctx.fillText(`You are the ${getHumanReadableFromType(player.type)}.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
     ctx.fillText(`All players loaded. Game starting in 3 seconds.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 30);
 
@@ -644,7 +678,7 @@ function drawGameOverScreen() {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = 'black';
-    ctx.font = 'bold 24px Arial';
+    ctx.font = 'bold 24px Courier New';
     ctx.fillText(`You ${didWin ? 'won!' : 'lost.'} Press Space to play again.`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
     ctx.fillText(getGameOverReasonText(), CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
 
@@ -666,8 +700,10 @@ function getNearObjects(arr) {
 
 function drawBackground(t) {
     ctx.save();
-    ctx.translate(-player.pos.x + CANVAS_WIDTH/2,-player.pos.y + CANVAS_HEIGHT/2)
-    ctx.fillStyle = '#ccc';
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.translate(-player.pos.x + CANVAS_WIDTH/2, -player.pos.y + CANVAS_HEIGHT/2)
+    ctx.fillStyle = '#57c255';
     ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
     if (player.type === PLAYER_COURIER && player.destination) {
@@ -679,6 +715,7 @@ function drawBackground(t) {
     }
 
     let allObjects = [
+        [grass, drawGrass],
         [FIRED_BULLETS, drawBullets],
         [map, drawBuildings],
         [DROPPED_MESSAGES, drawMessages],
@@ -706,6 +743,28 @@ function drawBuildings(buildings) {
 function drawMessages(msgs) {
     genericObjectDraw(msgs, Message);
 }
+
+function drawGrass(grs) {
+    ctx.strokeStyle = '#099a35';
+    ctx.lineWidth = 2;
+    grs.forEach(g => {
+        ctx.beginPath();
+        ctx.moveTo(g.pos.x, g.pos.y);
+        ctx.lineTo(g.pos.x, g.pos.y - 15);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(g.pos.x - 2, g.pos.y);
+        ctx.lineTo(g.pos.x - 7, g.pos.y - 15);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(g.pos.x + 2, g.pos.y);
+        ctx.lineTo(g.pos.x + 7, g.pos.y - 15);
+        ctx.stroke();
+    });
+}
+
 function drawBullets(bulls, t) {
     for (let bullet = 0; bullet < bulls.length; bullet++) {
         let drawData = bulls[bullet];
@@ -729,6 +788,19 @@ function drawOtherPlayers(plyrs, t) {
 
 function drawCivilians(civs) {
     genericObjectDraw(civs, Civilian);
+}
+
+const NUM_GRASS = 150;
+
+function generateGrass() {
+    let result = [];
+    for (let i = 0; i < NUM_GRASS; i++) {
+        result.push({
+            pos: { x: getRandomEntryInArr(BUILD_X_OPTS), y: getRandomEntryInArr(BUILD_Y_OPTS) },
+            size: { w: 15, h: 15 }
+        });
+    }
+    return result;
 }
 
 /** Socket listeners */
@@ -758,6 +830,7 @@ function connectSocket() {
             newPlayer.vel = data.vel;
         });
         map = data.buildings;
+        grass = generateGrass();
     });
 
     socket.on('game-update', function(data) {
@@ -818,5 +891,11 @@ function updateServer() {
     });
 }
 
+/** Setup */
+function initialize() {
+    loadDrawingPatterns();
+    update();
+}
+
 /** Start game */
-update();
+initialize();
